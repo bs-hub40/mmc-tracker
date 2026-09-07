@@ -574,14 +574,12 @@
     }
     try {
       const remote = await drivePull();
-      const merged = mergeDriveState(state, remote);
-      if (merged !== state) {
-        state = merged;
+      if (remote) {
+        state = mergeDriveState(state, remote);
         saveState(state);
         renderAll();
-      } else {
-        await drivePush(state);
       }
+      await drivePush(state);
       renderDriveStatus();
     } catch (err) {
       setHint(els.driveSyncHint, err.message || "Drive sync failed.");
@@ -618,9 +616,8 @@
         await googleSignIn();
       }
       const remote = await drivePull();
-      const merged = mergeDriveState(state, remote);
-      state = merged;
-      persist();
+      if (remote) state = mergeDriveState(state, remote);
+      saveState(state);
       await drivePush(state);
       renderAll();
       setHint(els.driveSyncHint, "Synced with Google Drive.", true);
@@ -1682,6 +1679,14 @@
     els.editReparse.addEventListener("click", reparseEdit);
     els.editModal.addEventListener("click", (e) => {
       if (e.target === els.editModal) closeEditModal();
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        window.MMC.flushDrivePush?.(true);
+      }
+    });
+    window.addEventListener("pagehide", () => {
+      window.MMC.flushDrivePush?.(true);
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !els.editModal.hidden) closeEditModal();

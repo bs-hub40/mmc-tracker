@@ -146,11 +146,13 @@ window.MMC = window.MMC || {};
   }
 
   async function api(url, options = {}) {
+    const { keepalive, ...rest } = options;
     const res = await fetch(url, {
-      ...options,
+      ...rest,
+      keepalive: Boolean(keepalive),
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        ...(options.headers || {}),
+        ...(rest.headers || {}),
       },
     });
     if (res.status === 401) {
@@ -290,16 +292,24 @@ window.MMC = window.MMC || {};
   }
 
   async function downloadDriveState() {
-    const visible = await findVisibleBackup().catch(() => null);
-    if (visible?.id) {
-      fileId = visible.id;
-      fileUrl = visible.webViewLink || fileLink(visible.id);
-      return downloadById(visible.id);
+    const visibleMeta = await findVisibleBackup().catch(() => null);
+    const hiddenMeta = await findAppDataBackup().catch(() => null);
+    const parts = [];
+
+    if (visibleMeta?.id) {
+      fileId = visibleMeta.id;
+      fileUrl = visibleMeta.webViewLink || fileLink(visibleMeta.id);
+      const data = await downloadById(visibleMeta.id);
+      if (data) parts.push(window.MMC.hydrateState(data));
     }
 
-    const hidden = await findAppDataBackup().catch(() => null);
-    if (hidden?.id) return downloadById(hidden.id);
-    return null;
+    if (hiddenMeta?.id && hiddenMeta.id !== visibleMeta?.id) {
+      const data = await downloadById(hiddenMeta.id);
+      if (data) parts.push(window.MMC.hydrateState(data));
+    }
+
+    if (!parts.length) return null;
+    return parts.reduce((acc, cur) => window.MMC.mergeTrackerState(acc, cur));
   }
 
   async function uploadDriveState(state) {
@@ -334,6 +344,7 @@ window.MMC = window.MMC || {};
     if (!getClientId()) return false;
     try {
       await requestToken("");
+      await window.MMC.flushDrivePush();
       return true;
     } catch {
       return false;
@@ -361,33 +372,53 @@ window.MMC = window.MMC || {};
     return window.MMC.hydrateState(raw);
   };
 
-  window.MMC.drivePush = async function drivePush(state) {
-    if (!accessToken) return false;
+  window.MMC.drivePush = async function drivePush(state, extra = {}) {
+    if (!state) return false;
+    if (!accessToken) {
+      pendingPayload = state;
+      return false;
+    }
     if (!tokenHasVisibleDrive()) {
       await requestToken("consent");
     }
     await uploadDriveState(state);
     lastSyncAt = Date.now();
     lastSyncError = "";
+    if (pendingPayload === state) pendingPayload = null;
     return true;
   };
 
+  let pendingPayload = null;
+
+  window.MMC.flushDrivePush = async function flushDrivePush(keepalive = false) {
+    const payload = pendingPayload;
+    if (!payload || !accessToken) return false;
+    clearTimeout(syncTimer);
+    try {
+      if (keepalive) {
+        await uploadDriveState(payload);
+        lastSyncAt = Date.now();
+        lastSyncError = "";
+        pendingPayload = null;
+        return true;
+      }
+      return window.MMC.drivePush(payload);
+    } catch (err) {
+      lastSyncError = err.message || "Drive sync failed.";
+      return false;
+    }
+  };
+
   window.MMC.scheduleDrivePush = function scheduleDrivePush(state) {
+    pendingPayload = state;
     if (!accessToken) return;
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(async () => {
-      try {
-        await window.MMC.drivePush(state);
-      } catch (err) {
-        lastSyncError = err.message || "Drive sync failed.";
-      }
-    }, 1200);
+    syncTimer = setTimeout(() => {
+      window.MMC.flushDrivePush();
+    }, 400);
   };
 
   window.MMC.mergeDriveState = function mergeDriveState(localState, remoteState) {
-    if (!remoteState) return localState;
-    const localTs = Number(localState?.updatedAt) || 0;
-    const remoteTs = Number(remoteState?.updatedAt) || 0;
-    return remoteTs >= localTs ? remoteState : localState;
+    return window.MMC.mergeTrackerState(localState, remoteState);
   };
 })();

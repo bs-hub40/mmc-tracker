@@ -161,6 +161,61 @@ Rules:
     return window.MMC.ensureToday(merged);
   },
 
+  mergeById(items) {
+    const map = new Map();
+    (items || []).forEach((item, i) => {
+      if (!item) return;
+      map.set(item.id || `anon-${i}-${item.loggedAt || 0}`, item);
+    });
+    return [...map.values()];
+  },
+
+  mergeWeights(a, b) {
+    const map = new Map();
+    [...(a || []), ...(b || [])].forEach((entry) => {
+      if (!entry) return;
+      const key = entry.date || entry.id;
+      if (!key) return;
+      const prev = map.get(key);
+      if (!prev || (entry.loggedAt || 0) >= (prev.loggedAt || 0)) {
+        map.set(key, entry);
+      }
+    });
+    return [...map.values()];
+  },
+
+  mergeTrackerState(localState, remoteState) {
+    if (!remoteState) return localState;
+    if (!localState) return remoteState;
+    const localHist = localState.history || {};
+    const remoteHist = remoteState.history || {};
+    const history = {};
+    const keys = new Set([...Object.keys(localHist), ...Object.keys(remoteHist)]);
+    keys.forEach((key) => {
+      const left = localHist[key] || window.MMC.emptyDay();
+      const right = remoteHist[key] || window.MMC.emptyDay();
+      history[key] = {
+        meals: window.MMC.mergeById([...(left.meals || []), ...(right.meals || [])]),
+        activities: window.MMC.mergeById([
+          ...(left.activities || []),
+          ...(right.activities || []),
+        ]),
+      };
+    });
+    const localTs = Number(localState.updatedAt) || 0;
+    const remoteTs = Number(remoteState.updatedAt) || 0;
+    const newer = remoteTs >= localTs ? remoteState : localState;
+    const older = newer === remoteState ? localState : remoteState;
+    return window.MMC.hydrateState({
+      ...newer,
+      history,
+      weights: window.MMC.mergeWeights(localState.weights, remoteState.weights),
+      apiKeys: { ...(older.apiKeys || {}), ...(newer.apiKeys || {}) },
+      apiKey: newer.apiKey || older.apiKey || "",
+      updatedAt: Math.max(localTs, remoteTs),
+    });
+  },
+
   normalizeProvider(provider) {
     return window.MMC.AI_PROVIDERS?.[provider] ? provider : "xai";
   },
