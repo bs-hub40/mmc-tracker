@@ -361,12 +361,11 @@
 
   function syncGoogleAuthUi() {
     const clientId = getGoogleClientId();
-    if (els.authGoogleClientId) els.authGoogleClientId.value = clientId;
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = !clientId;
     if (els.googleAuthHelp) {
       els.googleAuthHelp.textContent = clientId
-        ? "Uses your Google account. Tracker data syncs to an MMC Tracker folder in your Drive."
-        : "Open Google setup below (or Settings) and paste a Google OAuth Client ID first.";
+        ? "Sign in with Google to save your log in an MMC Tracker folder on your Drive."
+        : "Google sign-in is not configured for this app build.";
     }
   }
 
