@@ -15,21 +15,23 @@ Mobile-first dark-mode web app for daily pro-metabolic nutrition and activity tr
 ## Accounts & settings
 
 - **Local accounts** — username + password. Data stays in this browser.
-- **Google accounts** — Continue with Google. Data syncs to a hidden **Drive appData** folder (not your visible files). Last write wins across devices.
-- **Settings** — daily goals, AI keys, Google OAuth Client ID, Drive sync.
+- **Google accounts** — Continue with Google. Data syncs to an **MMC Tracker** folder on that person's Drive.
+- **Settings** — daily goals, AI keys, Drive sync.
 
-## Google sign-in + Drive (one-time Cloud setup)
+People who use the app never create a Google Cloud project. They tap **Continue with Google** and Allow.
 
-1. Open [Google Cloud Console](https://console.cloud.google.com/) and create a project.
-2. Enable **Google Drive API**.
-3. Configure **OAuth consent screen** (External is fine for your own Google account while in testing).
-4. Create **Credentials → OAuth client ID → Web application**.
-5. Add authorized JavaScript origins, for example:
-   - `http://localhost:5500`
-   - `https://bs-hub40.github.io`
-6. Copy the client ID into **Settings → Google OAuth Client ID**, or into `js/config.js` (`GOOGLE_CLIENT_ID`) before you host.
+## Google Cloud (app owner, once)
 
-Users then tap **Continue with Google**. MMC Tracker stores `mmc-tracker.json` in that Google account’s private app folder.
+The OAuth Client ID in `js/config.js` is already the shared app credential. Random users must not paste a client ID.
+
+To let anyone with a Gmail sign in (not only listed testers):
+
+1. [Google Auth Platform → Audience](https://console.cloud.google.com/auth/audience) → **Publish app**.
+2. On **Data Access**, keep only identity (`openid` / `email` / `profile`) and **`drive.file`**. Remove `drive.appdata` if it is listed — that scope is sensitive and blocks casual sign-in.
+3. Set the privacy policy URL to `https://bs-hub40.github.io/mmc-tracker/privacy.html`.
+4. Confirm Drive API is enabled and the JavaScript origin is `https://bs-hub40.github.io` (no path).
+
+Users still see Google's one-time Allow screen. That is required; it is not Cloud Console setup.
 
 ## Host on GitHub Pages
 

@@ -638,6 +638,7 @@
   }
 
   function saveGoogleClient() {
+    if (!els.googleClientId) return;
     const value = els.googleClientId.value.trim();
     setGoogleClientId(value);
     syncGoogleAuthUi();
@@ -1711,7 +1712,7 @@
   els.authForm.addEventListener("submit", handleAuthSubmit);
   els.googleSignInBtn?.addEventListener("click", handleGoogleSignIn);
   els.authSaveGoogleClient?.addEventListener("click", () => {
-    const value = els.authGoogleClientId.value.trim();
+    const value = (els.authGoogleClientId?.value || "").trim();
     setGoogleClientId(value);
     if (els.googleClientId) els.googleClientId.value = value;
     syncGoogleAuthUi();

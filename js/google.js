@@ -1,9 +1,10 @@
 window.MMC = window.MMC || {};
 
 (() => {
-  const APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
   const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-  const SCOPES = `openid email profile ${DRIVE_FILE_SCOPE} ${APPDATA_SCOPE}`;
+  // drive.file is non-sensitive. Do not request drive.appdata — that is sensitive
+  // and would force Google verification + a 100-user cap for random people.
+  const SCOPES = `openid email profile ${DRIVE_FILE_SCOPE}`;
   const GIS_SRC = "https://accounts.google.com/gsi/client";
   const FOLDER_NAME = "MMC Tracker";
   const FILE_NAME = () => window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
@@ -71,7 +72,7 @@ window.MMC = window.MMC || {};
   async function ensureTokenClient() {
     const clientId = getClientId();
     if (!clientId) {
-      throw new Error("Add a Google Client ID in Settings first.");
+      throw new Error("Google sign-in is not configured for this app.");
     }
     await loadGis();
     if (!window.google?.accounts?.oauth2) {
@@ -236,6 +237,7 @@ window.MMC = window.MMC || {};
   }
 
   async function findAppDataBackup() {
+    if (!grantedScopes.includes("drive.appdata")) return null;
     return findNamedFile({
       name: FILE_NAME(),
       spaces: "appDataFolder",
