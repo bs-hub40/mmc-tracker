@@ -72,10 +72,36 @@ window.MMC = window.MMC || {};
       tokenClient = window.google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: SCOPES,
+        include_granted_scopes: true,
         callback: () => {},
       });
     }
     return tokenClient;
+  }
+
+  let grantedScopes = "";
+
+  function tokenHasDriveScope() {
+    return grantedScopes.includes("drive.appdata") || grantedScopes.includes("auth/drive");
+  }
+
+  async function readGoogleError(res, fallback) {
+    let detail = "";
+    try {
+      const payload = await res.json();
+      detail = payload?.error?.message || payload?.error_description || "";
+    } catch {
+      /* ignore */
+    }
+    const text = `${detail} ${fallback}`.toLowerCase();
+    if (res.status === 403 && (text.includes("not been used") || text.includes("is disabled") || text.includes("access not configured"))) {
+      return "Google Drive API is not enabled on this Cloud project. Enable it, wait a minute, then tap Sync now.";
+    }
+    if (res.status === 403 && (text.includes("insufficient") || text.includes("access_denied") || text.includes("permission"))) {
+      return "Drive permission is missing. Sign out, then Continue with Google again and allow the app folder.";
+    }
+    if (detail) return detail;
+    return `${fallback} (HTTP ${res.status})`;
   }
 
   function requestToken(prompt) {
@@ -88,6 +114,7 @@ window.MMC = window.MMC || {};
             return;
           }
           accessToken = resp.access_token || "";
+          grantedScopes = resp.scope || SCOPES;
           if (!accessToken) {
             reject(new Error("Google did not return an access token."));
             return;
@@ -132,13 +159,15 @@ window.MMC = window.MMC || {};
     const params = new URLSearchParams({
       spaces: "appDataFolder",
       fields: "files(id,name,modifiedTime)",
-      q: `name='${name}' and trashed=false`,
-      pageSize: "1",
+      pageSize: "20",
     });
     const res = await api(`https://www.googleapis.com/drive/v3/files?${params}`);
-    if (!res.ok) throw new Error("Could not look up Google Drive data.");
+    if (!res.ok) {
+      throw new Error(await readGoogleError(res, "Could not look up Google Drive data."));
+    }
     const data = await res.json();
-    fileId = data.files?.[0]?.id || null;
+    const match = (data.files || []).find((f) => f.name === name);
+    fileId = match?.id || null;
     return fileId;
   }
 
@@ -152,7 +181,7 @@ window.MMC = window.MMC || {};
       fileId = null;
       return null;
     }
-    if (!res.ok) throw new Error("Could not download tracker data from Drive.");
+    if (!res.ok) throw new Error(await readGoogleError(res, "Could not download tracker data from Drive."));
     return res.json();
   }
 
@@ -172,7 +201,7 @@ window.MMC = window.MMC || {};
           body,
         }
       );
-      if (!res.ok) throw new Error("Could not update Google Drive data.");
+      if (!res.ok) throw new Error(await readGoogleError(res, "Could not update Google Drive data."));
       return;
     }
 
@@ -195,13 +224,16 @@ window.MMC = window.MMC || {};
         body: multipart,
       }
     );
-    if (!res.ok) throw new Error("Could not create Google Drive data.");
+    if (!res.ok) throw new Error(await readGoogleError(res, "Could not create Google Drive data."));
     const created = await res.json();
     fileId = created.id || null;
   }
 
   window.MMC.googleSignIn = async function googleSignIn() {
     await requestToken("consent");
+    if (!tokenHasDriveScope()) {
+      await requestToken("consent");
+    }
     return fetchProfile();
   };
 
@@ -219,6 +251,7 @@ window.MMC = window.MMC || {};
   window.MMC.googleSignOut = function googleSignOut() {
     const token = accessToken;
     accessToken = "";
+    grantedScopes = "";
     fileId = null;
     lastSyncError = "";
     if (token && window.google?.accounts?.oauth2?.revoke) {

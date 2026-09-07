@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-onboard" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-drivefix" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -383,6 +383,11 @@
           <div id="drive-sync-box" class="sync-box" hidden>
             <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
             <button type="button" class="btn btn-primary" id="drive-sync-btn">Sync now</button>
+            <p class="field-help">
+              “Connected” means Google sign-in worked. Sync also needs
+              <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener noreferrer">Google Drive API</a>
+              enabled in the same Cloud project.
+            </p>
             <p class="log-hint" id="drive-sync-hint" hidden></p>
           </div>
           <label class="field-label" for="google-client-id">Google OAuth Client ID</label>
@@ -423,12 +428,12 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-onboard"></script>
-    <script src="js/storage.js?v=20260907-onboard"></script>
-    <script src="js/providers.js?v=20260907-onboard"></script>
-    <script src="js/auth.js?v=20260907-onboard"></script>
-    <script src="js/google.js?v=20260907-onboard"></script>
-    <script src="js/grok.js?v=20260907-onboard"></script>
-    <script src="js/app.js?v=20260907-onboard"></script>
+    <script src="js/config.js?v=20260907-drivefix"></script>
+    <script src="js/storage.js?v=20260907-drivefix"></script>
+    <script src="js/providers.js?v=20260907-drivefix"></script>
+    <script src="js/auth.js?v=20260907-drivefix"></script>
+    <script src="js/google.js?v=20260907-drivefix"></script>
+    <script src="js/grok.js?v=20260907-drivefix"></script>
+    <script src="js/app.js?v=20260907-drivefix"></script>
   </body>
 </html>
