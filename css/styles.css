@@ -1398,21 +1398,91 @@ button {
   place-items: center;
   padding: 1.25rem;
   background:
-    radial-gradient(ellipse 120% 60% at 50% -10%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    radial-gradient(ellipse 120% 70% at 50% -8%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 58%),
+    radial-gradient(ellipse 80% 40% at 100% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 50%),
     var(--bg);
 }
 
 .auth-card {
-  width: min(100%, 400px);
-  padding: 1.25rem;
-  border-radius: 20px;
+  width: min(100%, 420px);
+  padding: 1.65rem 1.4rem 1.25rem;
+  border-radius: 22px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
 
-.auth-brand {
-  margin-bottom: 1rem;
+.auth-hero {
+  text-align: center;
+  margin-bottom: 1.15rem;
+}
+
+.auth-mark {
+  width: 3.5rem;
+  height: 3.5rem;
+  margin: 0 auto 0.85rem;
+  display: block;
+}
+
+.auth-hero h1 {
+  margin: 0;
+  font-size: 1.7rem;
+  letter-spacing: -0.03em;
+}
+
+.auth-lead {
+  margin: 0.4rem auto 0;
+  max-width: 20rem;
+  font-size: 0.98rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.auth-perks {
+  list-style: none;
+  margin: 0 0 1.15rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.auth-perks li {
+  position: relative;
+  padding: 0.38rem 0 0.38rem 1.45rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.auth-perks li::before {
+  content: "";
+  position: absolute;
+  left: 0.15rem;
+  top: 0.72rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.auth-drive-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.auth-foot {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.auth-foot a {
+  color: var(--text-dim);
 }
 
 .auth-tabs {
@@ -1475,15 +1545,64 @@ button {
 
 .btn-google {
   width: 100%;
-  margin-top: 0.35rem;
+  margin-top: 0.15rem;
   background: #fff;
   color: #1f1f1f;
   border: 1px solid #dadce0;
+  min-height: 3rem;
+  font-weight: 650;
 }
 
 .btn-google:hover:not(:disabled) {
   filter: none;
   background: #f8f9fa;
+}
+
+.google-g {
+  flex-shrink: 0;
+}
+
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+}
+
+.tour-spot {
+  position: absolute;
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(6, 8, 12, 0.68);
+  outline: 2px solid var(--accent);
+  pointer-events: none;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.tour-card {
+  position: absolute;
+  width: min(calc(100vw - 2rem), 360px);
+  padding: 1rem 1.05rem 1.05rem;
+  border-radius: 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  z-index: 2;
+}
+
+.tour-card .btn-primary {
+  width: auto;
+}
+
+.tour[data-tour-step="welcome"] .tour-card {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tour[data-tour-step="welcome"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 8, 12, 0.68);
 }
 
 .sync-box {

@@ -58,7 +58,7 @@
   const LOG_COPY = {
     label: "Log food or activity",
     placeholder:
-      'One thing or a whole day — e.g. "Coffee and steak", "45 min walk", or "Breakfast eggs, lunch salad, 30 min walk, dinner salmon"',
+      'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter, 30 min walk"',
   };
 
   function logButtonLabel() {
@@ -226,6 +226,14 @@
     qaStepHint: document.getElementById("qa-step-hint"),
     qaSkipBtn: document.getElementById("qa-skip-btn"),
     qaNextBtn: document.getElementById("qa-next-btn"),
+    appTour: document.getElementById("app-tour"),
+    tourSpot: document.getElementById("tour-spot"),
+    tourCard: document.getElementById("tour-card"),
+    tourKicker: document.getElementById("tour-kicker"),
+    tourTitle: document.getElementById("tour-title"),
+    tourBody: document.getElementById("tour-body"),
+    tourSkipBtn: document.getElementById("tour-skip-btn"),
+    tourNextBtn: document.getElementById("tour-next-btn"),
   };
 
   let editTarget = null;
@@ -236,6 +244,38 @@
   let setupIndex = 0;
   let qaSexPick = "";
   let lastMacroResult = null;
+  let tourIndex = 0;
+  const TOUR_STEPS = [
+    {
+      id: "welcome",
+      title: "Welcome to Log it",
+      body: "Type what you ate or did. We estimate calories and macros, then save the log to your Google Drive.",
+    },
+    {
+      id: "log",
+      title: "Just type it — with amounts",
+      body: "Vague logs guess wrong. Put the details in: “coffee with 1 tbsp half-and-half,” “4 oz grass-fed ribeye,” “3 eggs scrambled in 1 tsp butter.” Walks need minutes too.",
+      target: "#log-compose",
+    },
+    {
+      id: "tabs",
+      title: "Food, movement, scale",
+      body: "Nutrition is meals and remaining calories. Activity is workouts. Weight is the trendline — no calorie tracker there.",
+      target: ".mode-tabs",
+    },
+    {
+      id: "energy",
+      title: "Today at a glance",
+      body: "Streak and remaining calories stay up top while you log. Tap a meal later to edit or save it as a shortcut.",
+      target: "#daily-tracker",
+    },
+    {
+      id: "settings",
+      title: "Make it yours",
+      body: "The gear has your macro calculator, instant shortcuts, and Drive backup. That’s the whole app.",
+      target: "#settings-btn",
+    },
+  ];
 
   function targets() {
     return getTargets(state);
@@ -520,6 +560,7 @@
   }
 
   function handleSignOut() {
+    closeTour(false);
     closeProfileSetup();
     googleSignOut();
     logout();
@@ -533,7 +574,7 @@
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = !clientId;
     if (els.googleAuthHelp) {
       els.googleAuthHelp.textContent = clientId
-        ? "Sign in with Google. Google will ask to save a Log it folder on your Drive — tap Allow so your log follows you to other devices."
+        ? "Google will ask to save a Log it folder on your Drive. Tap Allow so your log follows you to other devices."
         : "Google sign-in is not configured for this app build.";
     }
   }
@@ -2379,13 +2420,129 @@
     }
   }
 
+  function tourIsOpen() {
+    return Boolean(els.appTour && !els.appTour.hidden);
+  }
+
+  function layoutTourStep() {
+    if (!tourIsOpen() || !els.tourCard) return;
+    const step = TOUR_STEPS[tourIndex];
+    if (!step) return;
+    const spot = els.tourSpot;
+    const card = els.tourCard;
+    const pad = 8;
+    const gap = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cardW = Math.min(vw - 32, 360);
+
+    if (!step.target) {
+      if (spot) spot.hidden = true;
+      card.style.left = "";
+      card.style.top = "";
+      card.style.width = "";
+      card.style.transform = "";
+      return;
+    }
+
+    const target = document.querySelector(step.target);
+    if (!target || target.hidden) {
+      if (spot) spot.hidden = true;
+      card.style.left = `${Math.max(16, (vw - cardW) / 2)}px`;
+      card.style.width = `${cardW}px`;
+      card.style.top = `${Math.max(16, vh * 0.55)}px`;
+      card.style.transform = "none";
+      return;
+    }
+
+    const r = target.getBoundingClientRect();
+    if (spot) {
+      spot.hidden = false;
+      spot.style.top = `${Math.max(4, r.top - pad)}px`;
+      spot.style.left = `${Math.max(4, r.left - pad)}px`;
+      spot.style.width = `${Math.min(vw - 8, r.width + pad * 2)}px`;
+      spot.style.height = `${r.height + pad * 2}px`;
+    }
+
+    card.style.width = `${cardW}px`;
+    card.style.transform = "none";
+    const left = Math.min(Math.max(16, r.left), vw - cardW - 16);
+    card.style.left = `${left}px`;
+    const cardH = card.offsetHeight || 180;
+    const below = r.bottom + gap + cardH + 16 < vh;
+    card.style.top = below
+      ? `${r.bottom + gap}px`
+      : `${Math.max(16, r.top - cardH - gap)}px`;
+  }
+
+  function paintTourStep() {
+    const step = TOUR_STEPS[tourIndex];
+    if (!step || !els.appTour) return;
+    if (step.target) {
+      setMode("nutrition");
+      setView("today");
+    }
+    els.appTour.hidden = false;
+    els.appTour.setAttribute("data-tour-step", step.id);
+    if (els.tourKicker) els.tourKicker.textContent = `${tourIndex + 1} of ${TOUR_STEPS.length}`;
+    if (els.tourTitle) els.tourTitle.textContent = step.title;
+    if (els.tourBody) els.tourBody.textContent = step.body;
+    if (els.tourNextBtn) {
+      els.tourNextBtn.textContent = tourIndex === TOUR_STEPS.length - 1 ? "Got it" : "Next";
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(layoutTourStep);
+    });
+  }
+
+  function closeTour(markDone) {
+    if (els.appTour) {
+      els.appTour.hidden = true;
+      els.appTour.removeAttribute("data-tour-step");
+    }
+    if (els.tourSpot) els.tourSpot.hidden = true;
+    tourIndex = 0;
+    if (markDone && state) {
+      state.profile = sanitizeProfile({ ...state.profile, tourDone: true });
+      persist();
+    }
+  }
+
+  function startTour() {
+    if (!els.appTour) return;
+    setMode("nutrition");
+    setView("today");
+    tourIndex = 0;
+    paintTourStep();
+  }
+
+  function maybeStartTour() {
+    if (!state || !session) return;
+    if (els.appShell?.hidden) return;
+    if (els.profileOnboard && !els.profileOnboard.hidden) return;
+    if (sanitizeProfile(state.profile).tourDone) return;
+    if (tourIsOpen()) return;
+    startTour();
+  }
+
+  function advanceTour() {
+    if (tourIndex >= TOUR_STEPS.length - 1) {
+      closeTour(true);
+      showToast("You're set. Type a meal to start.", true);
+      els.logInput?.focus();
+      return;
+    }
+    tourIndex += 1;
+    paintTourStep();
+  }
+
   function finishProfileSetup() {
     state.profile = sanitizeProfile({ ...state.profile, setupDone: true });
     persist();
     paintProfileForm();
     renderAll();
     closeProfileSetup();
-    showToast("You're set.", true);
+    maybeStartTour();
   }
 
   function advanceSetup() {
@@ -2483,6 +2640,7 @@
         persist();
       }
       closeProfileSetup();
+      maybeStartTour();
       return;
     }
     const showing = els.profileOnboard && !els.profileOnboard.hidden;
@@ -2762,6 +2920,11 @@
         action
       );
     });
+    els.tourSkipBtn?.addEventListener("click", () => closeTour(true));
+    els.tourNextBtn?.addEventListener("click", advanceTour);
+    window.addEventListener("resize", () => {
+      if (tourIsOpen()) layoutTourStep();
+    });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         window.MMC.flushDrivePush?.(true);
@@ -2773,6 +2936,10 @@
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       if (els.profileOnboard && !els.profileOnboard.hidden) return;
+      if (tourIsOpen()) {
+        closeTour(true);
+        return;
+      }
       if (els.qaSlotModal && !els.qaSlotModal.hidden) {
         closeQaSlotModal();
         return;
