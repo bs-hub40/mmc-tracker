@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0c0e12" />
+    <meta name="color-scheme" content="dark" />
+    <title>MMC Tracker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-gdrive" />
+  </head>
+  <body>
+    <div id="auth-screen" class="auth-screen" hidden>
+      <div class="auth-card">
+        <div class="brand auth-brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>MMC Tracker</h1>
+            <p class="tagline">Your private nutrition &amp; activity log</p>
+          </div>
+        </div>
+
+        <nav class="auth-tabs" role="tablist">
+          <button type="button" class="tab active" data-auth-tab="login">Sign in</button>
+          <button type="button" class="tab" data-auth-tab="create">Create account</button>
+        </nav>
+
+        <form id="auth-form" class="auth-form" autocomplete="on">
+          <label class="field-label" for="auth-username">Username</label>
+          <input
+            id="auth-username"
+            class="field-input"
+            type="text"
+            name="username"
+            autocomplete="username"
+            required
+            minlength="2"
+            placeholder="Choose a username"
+          />
+
+          <label class="field-label" for="auth-password">Password</label>
+          <input
+            id="auth-password"
+            class="field-input"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+            minlength="4"
+            placeholder="At least 4 characters"
+          />
+
+          <p class="field-help" id="auth-help">
+            No email needed. Accounts stay on this device — each person gets their own private log.
+          </p>
+          <p class="log-hint" id="auth-error" hidden></p>
+
+          <button type="submit" class="btn btn-primary" id="auth-submit">
+            <span class="btn-text">Sign in</span>
+          </button>
+        </form>
+
+        <div class="auth-divider"><span>or</span></div>
+        <button type="button" class="btn btn-google" id="google-signin-btn">
+          Continue with Google
+        </button>
+        <p class="field-help" id="google-auth-help">
+          Uses your Google account. Tracker data syncs to a hidden app folder on your Drive — not your visible files.
+        </p>
+        <details class="auth-setup">
+          <summary>Google setup (once)</summary>
+          <label class="field-label" for="auth-google-client-id">OAuth Client ID</label>
+          <input
+            type="text"
+            id="auth-google-client-id"
+            class="field-input"
+            placeholder="123-abc.apps.googleusercontent.com"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" class="btn btn-ghost" id="auth-save-google-client">Save Client ID</button>
+        </details>
+      </div>
+    </div>
+
+    <div id="app-shell" class="app" hidden>
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>MMC Tracker</h1>
+            <p class="tagline" id="user-tagline">Nutrition · activity · weight</p>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" class="icon-btn" id="settings-btn" aria-label="Settings" title="Settings" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" id="logout-btn" aria-label="Sign out" title="Sign out">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75">
+              <path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2" />
+              <path d="M3 12h11M10 8l4 4-4 4" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <nav class="mode-tabs" role="tablist" aria-label="Main menu">
+        <button type="button" class="mode-tab active" role="tab" aria-selected="true" data-mode="nutrition">
+          Nutrition
+        </button>
+        <button type="button" class="mode-tab" role="tab" aria-selected="false" data-mode="activity">
+          Activity
+        </button>
+        <button type="button" class="mode-tab" role="tab" aria-selected="false" data-mode="weight">
+          Weight
+        </button>
+      </nav>
+
+      <div id="daily-tracker" class="daily-tracker">
+        <section class="streak-card" id="streak-card" aria-live="polite">
+          <div class="streak-main">
+            <div class="streak-count" id="streak-count">0</div>
+            <div class="streak-copy">
+              <div class="streak-label">Day streak</div>
+              <div class="streak-sub" id="streak-sub">Log something to start a streak</div>
+            </div>
+          </div>
+          <div class="streak-best" id="streak-best">Best 0</div>
+        </section>
+
+        <section class="energy-card" id="energy-card" aria-label="Calorie balance"></section>
+      </div>
+
+      <section class="log-panel" id="log-panel">
+        <div id="ai-setup" class="setup-banner" hidden>
+          <div>
+            <strong>Connect AI to log</strong>
+            <p>Add an API key once — then describe meals or workouts in plain English.</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="ai-setup-btn">Settings</button>
+        </div>
+        <label class="log-label" id="log-label" for="log-input">Log with AI</label>
+        <textarea id="log-input" rows="3" placeholder=""></textarea>
+        <div class="log-actions">
+          <button type="button" class="btn btn-primary" id="log-btn">
+            <span class="btn-text">Parse &amp; Log</span>
+            <span class="btn-spinner" hidden aria-hidden="true"></span>
+          </button>
+        </div>
+        <div id="quick-actions" class="quick-actions" hidden></div>
+        <p class="log-hint" id="log-hint" hidden></p>
+      </section>
+
+      <button type="button" class="log-jump" id="log-jump-btn" hidden>＋ Log food with AI</button>
+
+      <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
+
+      <div id="mode-nutrition" class="mode-view">
+        <nav class="view-tabs" role="tablist" aria-label="Nutrition views">
+          <button type="button" class="tab active" role="tab" aria-selected="true" data-view="today">Today</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-view="week">Week</button>
+          <button type="button" class="tab" role="tab" aria-selected="false" data-view="month">Month</button>
+        </nav>
+
+        <div id="view-today" class="view">
+          <section class="macros" id="macros" aria-label="Daily macro progress"></section>
+
+          <section class="meals-panel">
+            <div class="meals-header">
+              <h2>Today's Meals</h2>
+            </div>
+            <ul class="meal-list" id="meal-list"></ul>
+            <div class="empty-state" id="empty-state">
+              <strong>No meals yet</strong>
+              <p>Try: “Coffee with maple syrup, 4 oz skirt steak, mozzarella”</p>
+            </div>
+            <button type="button" class="text-danger" id="reset-day-btn">Clear today’s meals &amp; activities</button>
+          </section>
+        </div>
+
+        <div id="view-week" class="view" hidden>
+          <section class="trend-panel">
+            <div class="meals-header">
+              <h2>Weekly trend</h2>
+              <span class="trend-chip" id="week-hit-rate">0/7 hit</span>
+            </div>
+            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 7 days</p>
+            <div class="chart" id="week-chart" aria-label="Weekly calorie chart"></div>
+            <div class="trend-stats" id="week-stats"></div>
+            <div class="goal-legend">Green = goal day · Net = food − activity burn</div>
+          </section>
+        </div>
+
+        <div id="view-month" class="view" hidden>
+          <section class="trend-panel">
+            <div class="meals-header">
+              <h2>Monthly trend</h2>
+              <span class="trend-chip" id="month-hit-rate">0/30 hit</span>
+            </div>
+            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 30 days</p>
+            <div class="chart chart-dense" id="month-chart" aria-label="Monthly calorie chart"></div>
+            <div class="trend-stats" id="month-stats"></div>
+            <div class="goal-legend" id="goal-legend-month">
+              Goal day uses your custom targets (±10% calories)
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="mode-activity" class="mode-view" hidden>
+        <section class="meals-panel">
+          <div class="meals-header">
+            <h2>Today's Activities</h2>
+          </div>
+          <ul class="meal-list" id="activity-list"></ul>
+          <div class="empty-state" id="activity-empty">
+            <strong>No activities yet</strong>
+            <p>Try: “45 min brisk walk” or “Upper body lift, 50 min”</p>
+          </div>
+        </section>
+      </div>
+
+      <div id="mode-weight" class="mode-view" hidden>
+        <section class="log-panel" id="weight-panel">
+          <label class="log-label" for="weight-input">Log today's weight</label>
+          <div class="weight-row">
+            <input
+              type="number"
+              id="weight-input"
+              class="field-input weight-input"
+              inputmode="decimal"
+              step="0.1"
+              min="50"
+              max="500"
+              placeholder="e.g. 178.4"
+            />
+            <select id="weight-unit" class="field-input weight-unit" aria-label="Weight unit">
+              <option value="lb">lb</option>
+              <option value="kg">kg</option>
+            </select>
+            <button type="button" class="btn btn-primary weight-log-btn" id="weight-btn">Log</button>
+          </div>
+          <p class="field-help weight-date-hint">
+            Saved with date <strong id="weight-date-label"></strong>. Logging again today updates that entry.
+          </p>
+          <p class="log-hint" id="weight-hint" hidden></p>
+        </section>
+
+        <section class="trend-panel">
+          <div class="meals-header">
+            <h2>Weight trend</h2>
+            <span class="trend-chip" id="weight-delta">—</span>
+          </div>
+          <p class="trend-note">One reading per day · newest on the right</p>
+          <div class="weight-chart-wrap" id="weight-chart" aria-label="Weight trendline"></div>
+          <div class="trend-stats" id="weight-stats"></div>
+        </section>
+
+        <section class="meals-panel">
+          <div class="meals-header">
+            <h2>Weight log</h2>
+          </div>
+          <ul class="meal-list" id="weight-list"></ul>
+          <div class="empty-state" id="weight-empty">
+            <strong>No weights yet</strong>
+            <p>Log today’s reading above to start your trendline.</p>
+          </div>
+        </section>
+      </div>
+
+      <div id="mode-settings" class="mode-view" hidden>
+        <section class="settings-panel">
+          <h2 class="settings-title">Daily goals</h2>
+          <p class="field-help">These drive progress bars, remaining calories, and trends.</p>
+          <div class="goals-grid">
+            <label class="goal-field">
+              <span>Calories (kcal)</span>
+              <input type="number" id="goal-calories" class="field-input" min="1" step="1" />
+            </label>
+            <label class="goal-field">
+              <span>Protein (g)</span>
+              <input type="number" id="goal-protein" class="field-input" min="1" step="1" />
+            </label>
+            <label class="goal-field">
+              <span>Fat cap (g)</span>
+              <input type="number" id="goal-fat" class="field-input" min="1" step="1" />
+            </label>
+            <label class="goal-field">
+              <span>Carbs (g)</span>
+              <input type="number" id="goal-carbs" class="field-input" min="1" step="1" />
+            </label>
+            <label class="goal-field">
+              <span>Fiber min (g)</span>
+              <input type="number" id="goal-fiber" class="field-input" min="1" step="1" />
+            </label>
+          </div>
+          <button type="button" class="btn btn-primary" id="save-goals-btn">Save goals</button>
+          <p class="log-hint" id="goals-hint" hidden></p>
+        </section>
+
+        <section class="settings-panel">
+          <h2 class="settings-title">Quick actions</h2>
+          <p class="field-help">
+            Save up to 3 one-tap AI prompts for nutrition and 3 for exercise. Each runs the same AI logging flow with your saved text.
+          </p>
+          <div class="qa-type-tabs" role="tablist" aria-label="Quick action type">
+            <button type="button" class="tab active" data-qa-type="nutrition" role="tab" aria-selected="true">
+              Nutrition
+            </button>
+            <button type="button" class="tab" data-qa-type="activity" role="tab" aria-selected="false">
+              Exercise
+            </button>
+          </div>
+          <div id="qa-editor" class="qa-editor"></div>
+          <button type="button" class="btn btn-primary" id="save-qa-btn">Save quick actions</button>
+          <p class="log-hint" id="qa-hint" hidden></p>
+        </section>
+
+        <section class="settings-panel">
+          <h2 class="settings-title">AI provider</h2>
+          <p class="field-help">
+            Choose Grok, Claude, or ChatGPT. Each provider keeps its own API key. The key you enter is used for the selected provider/model when logging food or activity.
+          </p>
+          <label class="field-label" for="provider-select">LLM</label>
+          <select id="provider-select" class="field-input"></select>
+          <label class="field-label" for="model-select">Model</label>
+          <select id="model-select" class="field-input"></select>
+          <label class="field-label" for="api-key">API key</label>
+          <input
+            type="password"
+            id="api-key"
+            class="field-input"
+            placeholder=""
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="field-help" id="api-key-help">Stored only in your account on this device.</p>
+          <button type="button" class="btn btn-primary" id="save-api-btn">Save AI settings</button>
+          <p class="log-hint" id="api-hint" hidden></p>
+        </section>
+
+        <section class="settings-panel">
+          <h2 class="settings-title">Account</h2>
+          <p class="account-line">Signed in as <strong id="settings-username">—</strong></p>
+          <p class="field-help" id="account-help">
+            Local accounts stay on this browser. Google accounts sync to a private app folder on your Drive.
+          </p>
+          <div id="drive-sync-box" class="sync-box" hidden>
+            <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
+            <button type="button" class="btn btn-primary" id="drive-sync-btn">Sync now</button>
+            <p class="log-hint" id="drive-sync-hint" hidden></p>
+          </div>
+          <label class="field-label" for="google-client-id">Google OAuth Client ID</label>
+          <input
+            type="text"
+            id="google-client-id"
+            class="field-input"
+            placeholder="123456789-abc.apps.googleusercontent.com"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <p class="field-help">
+            One-time app setup. Create a Web client in Google Cloud, enable Drive API, and add this site as an authorized JavaScript origin.
+          </p>
+          <button type="button" class="btn btn-ghost" id="save-google-client-btn">Save Google Client ID</button>
+          <p class="log-hint" id="google-client-hint" hidden></p>
+          <button type="button" class="btn btn-ghost" id="settings-logout-btn">Sign out</button>
+        </section>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="edit-modal" hidden>
+      <div class="modal edit-modal" role="dialog" aria-modal="true" aria-labelledby="edit-title">
+        <div class="modal-header">
+          <h2 id="edit-title">Edit entry</h2>
+          <button type="button" class="icon-btn" id="edit-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div id="edit-body" class="edit-body"></div>
+        <div class="edit-actions">
+          <button type="button" class="btn btn-ghost" id="edit-reparse" hidden>Re-parse with AI</button>
+          <button type="button" class="btn btn-primary" id="edit-save">Save</button>
+        </div>
+        <p class="log-hint" id="edit-hint" hidden></p>
+      </div>
+    </div>
+
+    <script src="js/config.js?v=20260907-gdrive"></script>
+    <script src="js/storage.js?v=20260907-gdrive"></script>
+    <script src="js/providers.js?v=20260907-gdrive"></script>
+    <script src="js/auth.js?v=20260907-gdrive"></script>
+    <script src="js/google.js?v=20260907-gdrive"></script>
+    <script src="js/grok.js?v=20260907-gdrive"></script>
+    <script src="js/app.js?v=20260907-gdrive"></script>
+  </body>
+</html>
