@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-oauthpub" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-qainstant" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -134,29 +134,37 @@
         <div id="ai-setup" class="ai-onboard" hidden>
           <h2 class="onboard-title">Connect AI to log meals &amp; workouts</h2>
           <p class="onboard-lead">
-            Use your own key. You pay the provider directly. The key stays in this browser (and Drive if you signed in with Google).
+            Pick Grok, Claude, ChatGPT, or Gemini. Create a key on their site, then paste it here. You pay them directly. The key stays in this browser (and Drive if you signed in with Google).
           </p>
-          <p class="field-label">1. Choose a provider</p>
+          <p class="field-label">1. Choose your AI</p>
           <div id="onboard-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
-          <p class="field-label">2. Create a key</p>
-          <a
-            id="onboard-key-link"
-            class="btn btn-ghost onboard-link"
-            href="https://console.x.ai/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >Open key page</a>
-          <p class="field-help" id="onboard-key-help"></p>
-          <label class="field-label" for="onboard-api-key">3. Paste the key</label>
-          <input
-            type="password"
-            id="onboard-api-key"
-            class="field-input"
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button type="button" class="btn btn-primary" id="onboard-save-btn">Save &amp; start logging</button>
-          <p class="log-hint" id="onboard-hint" hidden></p>
+          <div class="setup-card">
+            <p class="setup-card-kicker">Card 1</p>
+            <h3 class="setup-card-title">Create a key</h3>
+            <ol class="setup-steps" id="onboard-key-steps"></ol>
+            <p class="field-help" id="onboard-key-help"></p>
+            <a
+              id="onboard-key-link"
+              class="btn btn-ghost onboard-link"
+              href="https://console.x.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Open key page</a>
+          </div>
+          <div class="setup-card">
+            <p class="setup-card-kicker">Card 2</p>
+            <h3 class="setup-card-title">Paste it here</h3>
+            <label class="field-label" for="onboard-api-key">API key</label>
+            <input
+              type="password"
+              id="onboard-api-key"
+              class="field-input"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button type="button" class="btn btn-primary" id="onboard-save-btn">Save &amp; start logging</button>
+            <p class="log-hint" id="onboard-hint" hidden></p>
+          </div>
         </div>
 
         <div id="log-compose">
@@ -168,9 +176,9 @@
               <span class="btn-spinner" hidden aria-hidden="true"></span>
             </button>
           </div>
-          <div id="quick-actions" class="quick-actions" hidden></div>
-          <p class="log-hint" id="log-hint" hidden></p>
         </div>
+        <div id="quick-actions" class="quick-actions" hidden></div>
+        <p class="log-hint" id="log-hint" hidden></p>
       </section>
 
       <button type="button" class="log-jump" id="log-jump-btn" hidden>＋ Log food with AI</button>
@@ -291,7 +299,22 @@
       </div>
 
       <div id="mode-settings" class="mode-view" hidden>
-        <section class="settings-panel">
+        <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+          <button type="button" class="settings-nav-btn active" data-settings-section="goals" role="tab" aria-selected="true">
+            Goals
+          </button>
+          <button type="button" class="settings-nav-btn" data-settings-section="quick" role="tab" aria-selected="false">
+            Quick actions
+          </button>
+          <button type="button" class="settings-nav-btn" data-settings-section="ai" role="tab" aria-selected="false">
+            AI
+          </button>
+          <button type="button" class="settings-nav-btn" data-settings-section="account" role="tab" aria-selected="false">
+            Account
+          </button>
+        </nav>
+
+        <section class="settings-panel" data-settings-panel="goals">
           <h2 class="settings-title">Daily goals</h2>
           <p class="field-help">These drive progress bars, remaining calories, and trends.</p>
           <div class="goals-grid">
@@ -320,10 +343,10 @@
           <p class="log-hint" id="goals-hint" hidden></p>
         </section>
 
-        <section class="settings-panel">
+        <section class="settings-panel" data-settings-panel="quick" hidden>
           <h2 class="settings-title">Quick actions</h2>
           <p class="field-help">
-            Save up to 3 one-tap AI prompts for nutrition and 3 for exercise. Each runs the same AI logging flow with your saved text.
+            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here. After that, tapping the button on Nutrition or Exercise logs it instantly — no waiting.
           </p>
           <div class="qa-type-tabs" role="tablist" aria-label="Quick action type">
             <button type="button" class="tab active" data-qa-type="nutrition" role="tab" aria-selected="true">
@@ -334,37 +357,53 @@
             </button>
           </div>
           <div id="qa-editor" class="qa-editor"></div>
-          <button type="button" class="btn btn-primary" id="save-qa-btn">Save quick actions</button>
           <p class="log-hint" id="qa-hint" hidden></p>
         </section>
 
-        <section class="settings-panel">
-          <h2 class="settings-title">AI provider</h2>
+        <section class="settings-panel" data-settings-panel="ai" hidden>
+          <h2 class="settings-title">AI for logging</h2>
           <p class="field-help">
-            Choose Grok, Claude, or ChatGPT. Each provider keeps its own API key. The key you enter is used for the selected provider/model when logging food or activity.
+            Pick Grok, Claude, ChatGPT, or Gemini. Follow the two cards, then paste the key. Each AI keeps its own key. You pay that provider — MMC Tracker never sees a bill.
           </p>
-          <label class="field-label" for="provider-select">LLM</label>
-          <select id="provider-select" class="field-input"></select>
-          <label class="field-label" for="model-select">Model</label>
-          <select id="model-select" class="field-input"></select>
-          <label class="field-label" for="api-key">API key</label>
-          <input
-            type="password"
-            id="api-key"
-            class="field-input"
-            placeholder=""
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <p class="field-help" id="api-key-help">Stored only in your account on this device.</p>
-          <p class="field-help">
-            <a id="settings-key-link" href="https://console.x.ai/" target="_blank" rel="noopener noreferrer">Get a Grok (xAI) API key</a>
-          </p>
-          <button type="button" class="btn btn-primary" id="save-api-btn">Save AI settings</button>
-          <p class="log-hint" id="api-hint" hidden></p>
+          <p class="field-label">Choose your AI</p>
+          <div id="settings-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
+          <select id="provider-select" class="field-input" hidden aria-hidden="true" tabindex="-1"></select>
+
+          <div class="setup-card">
+            <p class="setup-card-kicker">Card 1</p>
+            <h3 class="setup-card-title">Create a key</h3>
+            <ol class="setup-steps" id="settings-key-steps"></ol>
+            <p class="field-help" id="settings-key-note"></p>
+            <a
+              id="settings-key-link"
+              class="btn btn-ghost onboard-link"
+              href="https://console.x.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Open key page</a>
+          </div>
+
+          <div class="setup-card">
+            <p class="setup-card-kicker">Card 2</p>
+            <h3 class="setup-card-title">Paste it here</h3>
+            <label class="field-label" for="api-key">API key</label>
+            <input
+              type="password"
+              id="api-key"
+              class="field-input"
+              placeholder=""
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <p class="field-help" id="api-key-help">Stored only in your account on this device.</p>
+            <label class="field-label" for="model-select">Model</label>
+            <select id="model-select" class="field-input"></select>
+            <button type="button" class="btn btn-primary" id="save-api-btn">Save AI settings</button>
+            <p class="log-hint" id="api-hint" hidden></p>
+          </div>
         </section>
 
-        <section class="settings-panel">
+        <section class="settings-panel" data-settings-panel="account" hidden>
           <h2 class="settings-title">Account</h2>
           <p class="account-line">Signed in as <strong id="settings-username">—</strong></p>
           <p class="field-help" id="account-help">
@@ -403,12 +442,12 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-oauthpub"></script>
-    <script src="js/storage.js?v=20260907-oauthpub"></script>
-    <script src="js/providers.js?v=20260907-oauthpub"></script>
-    <script src="js/auth.js?v=20260907-oauthpub"></script>
-    <script src="js/google.js?v=20260907-oauthpub"></script>
-    <script src="js/grok.js?v=20260907-oauthpub"></script>
-    <script src="js/app.js?v=20260907-oauthpub"></script>
+    <script src="js/config.js?v=20260907-qainstant"></script>
+    <script src="js/storage.js?v=20260907-qainstant"></script>
+    <script src="js/providers.js?v=20260907-qainstant"></script>
+    <script src="js/auth.js?v=20260907-qainstant"></script>
+    <script src="js/google.js?v=20260907-qainstant"></script>
+    <script src="js/grok.js?v=20260907-qainstant"></script>
+    <script src="js/app.js?v=20260907-qainstant"></script>
   </body>
 </html>

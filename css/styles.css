@@ -519,15 +519,57 @@ button {
 
 .provider-picks {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0.45rem;
   margin: 0.4rem 0 0.85rem;
 }
 
-@media (min-width: 420px) {
+@media (min-width: 520px) {
   .provider-picks {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
+}
+
+.setup-card {
+  margin: 0.75rem 0;
+  padding: 0.9rem 0.95rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.setup-card-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.setup-card-title {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+}
+
+.setup-steps {
+  margin: 0 0 0.65rem;
+  padding-left: 1.15rem;
+}
+
+.setup-steps li {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.setup-card .btn-primary {
+  margin-top: 0.75rem;
+}
+
+.settings-panel > .setup-card:last-of-type {
+  margin-bottom: 0;
 }
 
 .provider-pick {
@@ -545,6 +587,15 @@ button {
   border-color: rgba(240, 160, 48, 0.55);
   background: var(--amber-soft);
   color: var(--amber);
+}
+
+.pick-note {
+  display: block;
+  margin-top: 0.12rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
 }
 
 .onboard-link {
@@ -1286,6 +1337,56 @@ button {
   padding: 0.7rem 0.75rem;
 }
 
+.settings-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+@media (min-width: 420px) {
+  .settings-nav {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.settings-nav-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  min-height: 2.6rem;
+}
+
+.settings-nav-btn.active {
+  border-color: rgba(240, 160, 48, 0.55);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.qa-preview {
+  margin: 0.45rem 0 0.7rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.qa-preview.ready {
+  color: var(--green);
+}
+
+.qa-slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.qa-slot-actions .btn {
+  flex: 1 1 8rem;
+}
+
 .qa-type-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1338,7 +1439,7 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  margin-top: 0.75rem;
+  margin-top: 0.55rem;
 }
 
 .quick-action-btn {

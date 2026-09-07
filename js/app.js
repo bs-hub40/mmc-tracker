@@ -33,6 +33,7 @@
     normalizeModel,
     migrateAiSettings,
     sanitizeQuickActions,
+    clonePayload,
     getGoogleClientId,
     setGoogleClientId,
     googleSignIn,
@@ -69,6 +70,8 @@
   let authTab = "login";
   let appReady = false;
   let qaEditType = "nutrition";
+  let settingsSection = "goals";
+  let qaBusyIndex = -1;
 
   const els = {
     authScreen: document.getElementById("auth-screen"),
@@ -120,6 +123,7 @@
     onboardProviders: document.getElementById("onboard-providers"),
     onboardKeyLink: document.getElementById("onboard-key-link"),
     onboardKeyHelp: document.getElementById("onboard-key-help"),
+    onboardKeySteps: document.getElementById("onboard-key-steps"),
     onboardApiKey: document.getElementById("onboard-api-key"),
     onboardSaveBtn: document.getElementById("onboard-save-btn"),
     onboardHint: document.getElementById("onboard-hint"),
@@ -151,6 +155,9 @@
     saveApiBtn: document.getElementById("save-api-btn"),
     apiHint: document.getElementById("api-hint"),
     settingsKeyLink: document.getElementById("settings-key-link"),
+    settingsProviders: document.getElementById("settings-providers"),
+    settingsKeySteps: document.getElementById("settings-key-steps"),
+    settingsKeyNote: document.getElementById("settings-key-note"),
     qaEditor: document.getElementById("qa-editor"),
     saveQaBtn: document.getElementById("save-qa-btn"),
     qaHint: document.getElementById("qa-hint"),
@@ -243,37 +250,51 @@
     if (currentMode === "nutrition" || currentMode === "activity") {
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
-      els.quickActions?.querySelectorAll(".quick-action-btn").forEach((btn) => {
-        btn.disabled = logBusy || !ready;
-      });
     }
     if (!ready) renderOnboard();
+    renderQuickActions();
+  }
+
+  function renderProviderPicks(container, activeId) {
+    if (!container) return;
+    const current = normalizeProvider(activeId);
+    container.innerHTML = Object.values(AI_PROVIDERS)
+      .map((p) => {
+        const rec = p.id === "gemini" ? '<span class="pick-note">easy</span>' : "";
+        const active = p.id === current ? " active" : "";
+        return `<button type="button" class="provider-pick${active}" data-ai-provider="${p.id}" role="radio" aria-checked="${p.id === current}">${p.pickLabel || p.label}${rec}</button>`;
+      })
+      .join("");
+  }
+
+  function applyKeyGuide(cfg, { link, stepsEl, noteEl, keyInput }) {
+    if (!cfg) return;
+    if (link) {
+      link.href = cfg.keyUrl;
+      link.textContent = `Open ${cfg.pickLabel || cfg.label} key page`;
+    }
+    if (stepsEl) {
+      stepsEl.innerHTML = (cfg.setupSteps || []).map((step) => `<li>${step}</li>`).join("");
+    }
+    if (noteEl) noteEl.textContent = cfg.setupNote || "";
+    if (keyInput) keyInput.placeholder = cfg.keyHint;
   }
 
   function renderOnboard() {
     if (!els.onboardProviders || !state) return;
     onboardProvider = normalizeProvider(onboardProvider || state.provider || "xai");
-    els.onboardProviders.innerHTML = Object.values(AI_PROVIDERS)
-      .map((p) => {
-        const rec = p.id === "xai" ? " · easy start" : "";
-        const active = p.id === onboardProvider ? " active" : "";
-        return `<button type="button" class="provider-pick${active}" data-onboard-provider="${p.id}" role="radio" aria-checked="${p.id === onboardProvider}">${p.label}${rec}</button>`;
-      })
-      .join("");
+    renderProviderPicks(els.onboardProviders, onboardProvider);
     syncOnboardProviderUi();
   }
 
   function syncOnboardProviderUi() {
     const cfg = AI_PROVIDERS[normalizeProvider(onboardProvider)];
-    if (!cfg) return;
-    if (els.onboardKeyLink) {
-      els.onboardKeyLink.href = cfg.keyUrl;
-      els.onboardKeyLink.textContent = `Open ${cfg.label} key page`;
-    }
-    if (els.onboardKeyHelp) {
-      els.onboardKeyHelp.innerHTML = `Create an API key at <strong>${cfg.keyUrlLabel}</strong>. ${cfg.keyHint}. You may need to add a little prepaid credit.`;
-    }
-    if (els.onboardApiKey) els.onboardApiKey.placeholder = cfg.keyHint;
+    applyKeyGuide(cfg, {
+      link: els.onboardKeyLink,
+      stepsEl: els.onboardKeySteps,
+      noteEl: els.onboardKeyHelp,
+      keyInput: els.onboardApiKey,
+    });
   }
 
   function saveOnboardApi() {
@@ -311,11 +332,7 @@
     const text = els.logBtn.querySelector(".btn-text");
     spinner.hidden = !busy;
     text.textContent = busy ? copy.busy : copy.button;
-    if (els.quickActions) {
-      els.quickActions.querySelectorAll(".quick-action-btn").forEach((btn) => {
-        btn.disabled = busy || !ready;
-      });
-    }
+    if (els.quickActions) renderQuickActions();
   }
 
   function escapeHtml(str) {
@@ -407,6 +424,15 @@
   }
 
   function setMode(mode) {
+    if (
+      currentMode === "settings" &&
+      settingsSection === "quick" &&
+      state &&
+      els.qaEditor
+    ) {
+      state.quickActions = readQaEditorDraft();
+      persist();
+    }
     currentMode = mode;
     document.querySelectorAll(".mode-tabs .mode-tab").forEach((tab) => {
       const active = tab.dataset.mode === mode;
@@ -439,8 +465,29 @@
       els.weightUnit.value = state.weightUnit || "lb";
       renderWeight();
     }
-    if (mode === "settings") fillSettingsForm();
+    if (mode === "settings") {
+      fillSettingsForm();
+      setSettingsSection(settingsSection);
+    }
     if (mode === "nutrition" && currentView !== "today") renderTrends();
+  }
+
+  function setSettingsSection(section) {
+    const allowed = new Set(["goals", "quick", "ai", "account"]);
+    settingsSection = allowed.has(section) ? section : "goals";
+    document.querySelectorAll("[data-settings-section]").forEach((tab) => {
+      const active = tab.dataset.settingsSection === settingsSection;
+      tab.classList.toggle("active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.settingsPanel !== settingsSection;
+    });
+    if (settingsSection === "quick") renderQaEditor();
+    if (settingsSection === "ai") {
+      fillModelSelect(state.provider, state.model);
+      syncApiKeyField();
+    }
   }
 
   function setView(view) {
@@ -481,14 +528,18 @@
   function syncApiKeyField() {
     const provider = normalizeProvider(els.providerSelect.value);
     const cfg = AI_PROVIDERS[provider];
-    els.apiKey.placeholder = cfg.keyHint;
-    els.apiKeyHelp.innerHTML = `For <strong>${cfg.label}</strong>. ${cfg.keyHint}. Stored only on this device.`;
-    if (els.settingsKeyLink) {
-      els.settingsKeyLink.href = cfg.keyUrl;
-      els.settingsKeyLink.textContent = `Get a ${cfg.label} API key`;
+    applyKeyGuide(cfg, {
+      link: els.settingsKeyLink,
+      stepsEl: els.settingsKeySteps,
+      noteEl: els.settingsKeyNote,
+      keyInput: els.apiKey,
+    });
+    if (els.apiKeyHelp) {
+      els.apiKeyHelp.textContent = `${cfg.keyHint}. Stored only in this account (and Drive if you use Google).`;
     }
     const keys = state.apiKeys || {};
     els.apiKey.value = keys[provider] || (provider === "xai" ? state.apiKey || "" : "");
+    renderProviderPicks(els.settingsProviders, provider);
   }
 
   function onProviderChange() {
@@ -649,6 +700,18 @@
     );
   }
 
+  function qaPreviewText(slot) {
+    if (!slot?.parsed) {
+      return "Not created yet. Describe it, then tap Create with AI.";
+    }
+    if (qaEditType === "activity") {
+      const kcal = round1(slot.parsed.totalCaloriesBurned);
+      return `Ready · ${kcal} kcal burned · tap on Exercise to log instantly`;
+    }
+    const kcal = round1(slot.parsed.totalCalories);
+    return `Ready · ${kcal} kcal · tap on Nutrition to log instantly`;
+  }
+
   function renderQaEditor() {
     if (!els.qaEditor) return;
     document.querySelectorAll("[data-qa-type]").forEach((tab) => {
@@ -660,8 +723,15 @@
     const slots = sanitizeQuickActions(state.quickActions)[qaEditType];
     const kind = qaEditType === "nutrition" ? "food" : "exercise";
     els.qaEditor.innerHTML = slots
-      .map(
-        (slot, i) => `
+      .map((slot, i) => {
+        const ready = Boolean(slot.parsed);
+        const busy = qaBusyIndex === i;
+        const createLabel = busy
+          ? "Parsing…"
+          : ready
+            ? "Update with AI"
+            : "Create with AI";
+        return `
       <div class="qa-slot" data-qa-index="${i}">
         <p class="qa-slot-label">Quick action ${i + 1}</p>
         <label class="field-label" for="qa-label-${i}">Button label</label>
@@ -673,8 +743,9 @@
           placeholder="${qaEditType === "nutrition" ? "e.g. Breakfast" : "e.g. Walk"}"
           value="${escapeHtml(slot.label)}"
           data-qa-field="label"
+          ${busy ? "disabled" : ""}
         />
-        <label class="field-label" for="qa-prompt-${i}">AI prompt</label>
+        <label class="field-label" for="qa-prompt-${i}">What to log</label>
         <textarea
           id="qa-prompt-${i}"
           class="field-input"
@@ -682,46 +753,134 @@
           rows="3"
           placeholder="${
             qaEditType === "nutrition"
-              ? 'e.g. 3 eggs scrambled in butter, 1 cup orange juice'
-              : 'e.g. 45 min brisk walk'
+              ? "e.g. 3 eggs scrambled in butter, 1 cup orange juice"
+              : "e.g. 45 min brisk walk"
           }"
           data-qa-field="prompt"
+          ${busy ? "disabled" : ""}
         >${escapeHtml(slot.prompt)}</textarea>
-        <p class="field-help">Leave blank to hide this slot. Prompt is sent to AI when you tap the button on the ${kind} tab.</p>
+        <p class="qa-preview${ready ? " ready" : ""}">${escapeHtml(qaPreviewText(slot))}</p>
+        <div class="qa-slot-actions">
+          <button type="button" class="btn btn-primary" data-qa-create="${i}" ${busy ? "disabled" : ""}>
+            ${createLabel}
+          </button>
+          <button type="button" class="btn btn-ghost" data-qa-clear="${i}" ${
+            busy || (!slot.prompt && !slot.label && !slot.parsed) ? "hidden" : ""
+          }>Remove</button>
+        </div>
       </div>
-    `
-      )
+    `;
+      })
       .join("");
   }
 
-  function readQaEditor() {
+  function readQaEditorDraft() {
+    if (!els.qaEditor) return sanitizeQuickActions(state.quickActions);
     const next = sanitizeQuickActions(state.quickActions);
-    const slots = [0, 1, 2].map((i) => {
+    next[qaEditType] = [0, 1, 2].map((i) => {
       const root = els.qaEditor.querySelector(`[data-qa-index="${i}"]`);
       const existing = next[qaEditType][i] || {};
+      const label = (root?.querySelector('[data-qa-field="label"]')?.value || "").trim();
+      const prompt = (root?.querySelector('[data-qa-field="prompt"]')?.value || "").trim();
+      const promptChanged = prompt !== (existing.prompt || "");
       return {
         id: existing.id || uid(),
-        label: root?.querySelector('[data-qa-field="label"]')?.value || "",
-        prompt: root?.querySelector('[data-qa-field="prompt"]')?.value || "",
+        label,
+        prompt,
+        parsed: promptChanged ? null : existing.parsed || null,
       };
     });
-    next[qaEditType] = slots;
     return sanitizeQuickActions(next);
   }
 
-  function saveQuickActions() {
-    state.quickActions = readQaEditor();
-    persist();
-    renderQuickActions();
+  async function createQuickAction(index) {
+    if (!hasAiKey()) {
+      setHint(els.qaHint, "Add an AI key in the AI tab first.");
+      setSettingsSection("ai");
+      showToast("Add an API key first", false);
+      return;
+    }
+    state.quickActions = readQaEditorDraft();
+    const slot = state.quickActions[qaEditType][index];
+    const prompt = (slot?.prompt || "").trim();
+    if (!prompt) {
+      setHint(els.qaHint, "Describe the food or exercise first.");
+      return;
+    }
+
+    qaBusyIndex = index;
+    setHint(els.qaHint, "");
     renderQaEditor();
-    setHint(els.qaHint, "Quick actions saved.", true);
-    showToast("Quick actions saved", true);
+
+    try {
+      const parsed =
+        qaEditType === "activity"
+          ? await parseActivityWithGrok({
+              provider: state.provider,
+              apiKey: getActiveApiKey(state),
+              model: state.model,
+              text: prompt,
+            })
+          : await parseMealWithGrok({
+              provider: state.provider,
+              apiKey: getActiveApiKey(state),
+              model: state.model,
+              text: prompt,
+            });
+      const label =
+        slot.label ||
+        parsed.items?.[0]?.name ||
+        (qaEditType === "activity" ? "Exercise" : "Meal");
+      state.quickActions[qaEditType][index] = {
+        id: slot.id || uid(),
+        label: String(label).slice(0, 40),
+        prompt,
+        parsed,
+      };
+      state.quickActions = sanitizeQuickActions(state.quickActions);
+      persist();
+      renderQuickActions();
+      const kcal =
+        qaEditType === "activity"
+          ? round1(parsed.totalCaloriesBurned)
+          : round1(parsed.totalCalories);
+      setHint(
+        els.qaHint,
+        `Saved. ${label} is ready (${kcal} kcal). It will log instantly from the ${
+          qaEditType === "activity" ? "Exercise" : "Nutrition"
+        } tab.`,
+        true
+      );
+      showToast(`${label} ready — logs instantly`, true);
+    } catch (err) {
+      const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
+      setHint(els.qaHint, err.message || `Could not parse with ${providerLabel}.`);
+      showToast("Could not create quick action", false);
+    } finally {
+      qaBusyIndex = -1;
+      renderQaEditor();
+    }
+  }
+
+  function clearQuickAction(index) {
+    state.quickActions = readQaEditorDraft();
+    state.quickActions[qaEditType][index] = {
+      id: uid(),
+      label: "",
+      prompt: "",
+      parsed: null,
+    };
+    state.quickActions = sanitizeQuickActions(state.quickActions);
+    persist();
+    renderQaEditor();
+    renderQuickActions();
+    setHint(els.qaHint, "Quick action removed.", true);
   }
 
   function activeQuickActions() {
     const qa = sanitizeQuickActions(state?.quickActions);
     const list = currentMode === "activity" ? qa.activity : qa.nutrition;
-    return list.filter((item) => item.label && item.prompt);
+    return list.filter((item) => item.label && (item.parsed || item.prompt));
   }
 
   function renderQuickActions() {
@@ -736,21 +895,61 @@
       return;
     }
 
-    const ready = hasAiKey();
     els.quickActions.hidden = false;
     els.quickActions.innerHTML = actions
-      .map(
-        (action) => `
+      .map((action) => {
+        const instant = Boolean(action.parsed);
+        const blocked = logBusy || (!instant && !hasAiKey());
+        return `
       <button
         type="button"
         class="quick-action-btn"
         data-qa-id="${escapeHtml(action.id)}"
-        ${logBusy || !ready ? "disabled" : ""}
-        title="${escapeHtml(action.prompt)}"
+        ${blocked ? "disabled" : ""}
+        title="${escapeHtml(
+          instant
+            ? "Logs instantly — AI already ran in Settings"
+            : action.prompt
+        )}"
       >${escapeHtml(action.label)}</button>
-    `
-      )
+    `;
+      })
       .join("");
+  }
+
+  function logQuickAction(action) {
+    state = ensureToday(state);
+    if (action.parsed) {
+      const parsed = clonePayload(action.parsed);
+      if (currentMode === "nutrition") {
+        today().meals.push({
+          id: uid(),
+          loggedAt: Date.now(),
+          rawText: action.prompt || action.label,
+          ...parsed,
+        });
+        persist();
+        renderAll();
+        const msg = `Logged ${action.label}`;
+        setHint(els.logHint, msg, true);
+        showToast(msg, true);
+      } else {
+        today().activities.push({
+          id: uid(),
+          loggedAt: Date.now(),
+          rawText: action.prompt || action.label,
+          text: action.prompt || action.label,
+          ...parsed,
+        });
+        persist();
+        renderAll();
+        const msg = `Logged ${action.label}`;
+        setHint(els.logHint, msg, true);
+        showToast(msg, true);
+      }
+      return;
+    }
+    handleLog(action.prompt);
   }
 
   function renderStreak() {
@@ -1593,7 +1792,8 @@
     document.querySelectorAll("[data-qa-type]").forEach((tab) => {
       tab.addEventListener("click", () => {
         if (qaEditType === tab.dataset.qaType) return;
-        state.quickActions = readQaEditor();
+        state.quickActions = readQaEditorDraft();
+        persist();
         qaEditType = tab.dataset.qaType;
         setHint(els.qaHint, "");
         renderQaEditor();
@@ -1601,9 +1801,9 @@
     });
 
     els.onboardProviders?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-onboard-provider]");
-      if (!btn) return;
-      onboardProvider = btn.getAttribute("data-onboard-provider");
+      const btn = e.target.closest("[data-ai-provider]");
+      if (!btn || !els.onboardProviders.contains(btn)) return;
+      onboardProvider = btn.getAttribute("data-ai-provider");
       renderOnboard();
       setHint(els.onboardHint, "");
     });
@@ -1615,7 +1815,27 @@
       }
     });
 
-    els.saveQaBtn?.addEventListener("click", saveQuickActions);
+    document.querySelectorAll("[data-settings-section]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        if (settingsSection === "quick") {
+          state.quickActions = readQaEditorDraft();
+          persist();
+        }
+        setSettingsSection(tab.dataset.settingsSection);
+      });
+    });
+
+    els.qaEditor?.addEventListener("click", (e) => {
+      const createBtn = e.target.closest("[data-qa-create]");
+      if (createBtn) {
+        createQuickAction(Number(createBtn.getAttribute("data-qa-create")));
+        return;
+      }
+      const clearBtn = e.target.closest("[data-qa-clear]");
+      if (clearBtn) {
+        clearQuickAction(Number(clearBtn.getAttribute("data-qa-clear")));
+      }
+    });
 
     els.quickActions?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-qa-id]");
@@ -1623,7 +1843,7 @@
       const id = btn.getAttribute("data-qa-id");
       const action = activeQuickActions().find((a) => a.id === id);
       if (!action) return;
-      handleLog(action.prompt);
+      logQuickAction(action);
     });
 
     els.logBtn.addEventListener("click", () => handleLog());
@@ -1679,6 +1899,13 @@
     els.settingsLogoutBtn.addEventListener("click", handleSignOut);
     els.saveGoalsBtn.addEventListener("click", saveGoals);
     els.saveApiBtn.addEventListener("click", saveApi);
+    els.settingsProviders?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-ai-provider]");
+      if (!btn || !els.settingsProviders.contains(btn)) return;
+      els.providerSelect.value = btn.getAttribute("data-ai-provider");
+      onProviderChange();
+      setHint(els.apiHint, "");
+    });
     els.providerSelect.addEventListener("change", onProviderChange);
     els.saveGoogleClientBtn?.addEventListener("click", saveGoogleClient);
     els.driveSyncBtn?.addEventListener("click", handleDriveSyncNow);

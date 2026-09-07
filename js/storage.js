@@ -89,7 +89,60 @@ Rules:
   },
 
   emptyQuickAction() {
-    return { id: "", label: "", prompt: "" };
+    return { id: "", label: "", prompt: "", parsed: null };
+  },
+
+  clonePayload(value) {
+    return JSON.parse(JSON.stringify(value));
+  },
+
+  sanitizeQaMealParsed(parsed) {
+    if (!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return null;
+    const items = parsed.items.slice(0, 20).map((item) => ({
+      name: String(item?.name || "Item").trim() || "Item",
+      calories: Number(item?.calories) || 0,
+      protein: Number(item?.protein) || 0,
+      fat: Number(item?.fat) || 0,
+      carbs: Number(item?.carbs) || 0,
+      fiber: Number(item?.fiber) || 0,
+    }));
+    const sum = items.reduce(
+      (acc, item) => {
+        acc.calories += item.calories;
+        acc.protein += item.protein;
+        acc.fat += item.fat;
+        acc.carbs += item.carbs;
+        acc.fiber += item.fiber;
+        return acc;
+      },
+      { calories: 0, protein: 0, fat: 0, carbs: 0, fiber: 0 }
+    );
+    return {
+      items,
+      totalCalories: Number(parsed.totalCalories ?? sum.calories) || sum.calories,
+      totalProtein: Number(parsed.totalProtein ?? sum.protein) || sum.protein,
+      totalFat: Number(parsed.totalFat ?? sum.fat) || sum.fat,
+      totalCarbs: Number(parsed.totalCarbs ?? sum.carbs) || sum.carbs,
+      totalFiber: Number(parsed.totalFiber ?? sum.fiber) || sum.fiber,
+    };
+  },
+
+  sanitizeQaActivityParsed(parsed) {
+    if (!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return null;
+    const items = parsed.items.slice(0, 20).map((item) => ({
+      name: String(item?.name || "Activity").trim() || "Activity",
+      durationMin: Number(item?.durationMin) || 0,
+      caloriesBurned: Number(item?.caloriesBurned) || 0,
+      intensity: ["low", "moderate", "high"].includes(item?.intensity)
+        ? item.intensity
+        : "moderate",
+    }));
+    const sum = items.reduce((acc, item) => acc + item.caloriesBurned, 0);
+    return {
+      items,
+      totalCaloriesBurned: Number(parsed.totalCaloriesBurned ?? sum) || sum,
+      summary: String(parsed.summary || "").trim().slice(0, 240),
+    };
   },
 
   defaultQuickActions() {
@@ -109,22 +162,27 @@ Rules:
 
   sanitizeQuickActions(input) {
     const base = window.MMC.defaultQuickActions();
-    const cleanList = (list) => {
+    const cleanList = (list, type) => {
       const src = Array.isArray(list) ? list : [];
       return [0, 1, 2].map((i) => {
         const item = src[i] || {};
         const label = String(item.label || "").trim().slice(0, 40);
         const prompt = String(item.prompt || "").trim().slice(0, 500);
+        const parsed =
+          type === "activity"
+            ? window.MMC.sanitizeQaActivityParsed(item.parsed)
+            : window.MMC.sanitizeQaMealParsed(item.parsed);
         return {
           id: item.id || window.MMC.uid(),
           label,
           prompt,
+          parsed,
         };
       });
     };
     return {
-      nutrition: cleanList(input?.nutrition ?? base.nutrition),
-      activity: cleanList(input?.activity ?? base.activity),
+      nutrition: cleanList(input?.nutrition ?? base.nutrition, "nutrition"),
+      activity: cleanList(input?.activity ?? base.activity, "activity"),
     };
   },
 
@@ -132,7 +190,7 @@ Rules:
     const today = window.MMC.todayKey();
     return {
       apiKey: "",
-      apiKeys: { xai: "", openai: "", anthropic: "" },
+      apiKeys: { xai: "", openai: "", anthropic: "", gemini: "" },
       provider: "xai",
       model: "grok-4.6",
       activeDate: today,
@@ -234,6 +292,7 @@ Rules:
       xai: "",
       openai: "",
       anthropic: "",
+      gemini: "",
       ...(stateLike.apiKeys || {}),
     };
     // Legacy single apiKey → xAI key
@@ -257,7 +316,7 @@ Rules:
   setActiveApiKey(state, key) {
     const provider = window.MMC.normalizeProvider(state.provider);
     if (!state.apiKeys) {
-      state.apiKeys = { xai: "", openai: "", anthropic: "" };
+      state.apiKeys = { xai: "", openai: "", anthropic: "", gemini: "" };
     }
     state.apiKeys[provider] = key;
     if (provider === "xai") state.apiKey = key;

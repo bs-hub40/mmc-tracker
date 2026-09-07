@@ -16,7 +16,7 @@ Mobile-first dark-mode web app for daily pro-metabolic nutrition and activity tr
 
 - **Local accounts** — username + password. Data stays in this browser.
 - **Google accounts** — Continue with Google. Data syncs to an **MMC Tracker** folder on that person's Drive.
-- **Settings** — daily goals, AI keys, Drive sync.
+- **Settings** — submenu for goals, instant quick actions, AI setup (Grok, Claude, ChatGPT, Gemini), and account / Drive.
 
 People who use the app never create a Google Cloud project. They tap **Continue with Google** and Allow.
 
@@ -50,8 +50,8 @@ Live app: `https://bs-hub40.github.io/mmc-tracker/`
 
 No build step. Open `index.html` in a browser (Chrome/Edge recommended).
 
-1. Tap the gear icon → paste your `xai-` API key → Save  
+1. Gear icon → pick Grok, Claude, ChatGPT, or Gemini → follow the two cards → paste the key → Save  
 2. Describe a meal in plain English → **Parse & Log**  
 3. Watch macros and energy balance update  
 
-Note: Grok logging needs network access to `api.x.ai`. If a browser blocks `file://` fetch, serve the folder locally (`python -m http.server` or `npx serve`).
+Note: Logging needs network access to the provider you chose. If a browser blocks `file://` fetch, serve the folder locally (`python -m http.server` or `npx serve`).

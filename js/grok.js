@@ -118,6 +118,42 @@ window.MMC = window.MMC || {};
     return extractJson(content);
   }
 
+  async function callGemini({ apiKey, model, system, user }) {
+    const url =
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent` +
+      `?key=${encodeURIComponent(apiKey)}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: user }] }],
+        generationConfig: {
+          temperature: 0.2,
+          responseMimeType: "application/json",
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const err = await response.json();
+        detail = err?.error?.message || JSON.stringify(err);
+      } catch {
+        detail = await response.text();
+      }
+      throw new Error(detail || `Gemini API error (${response.status})`);
+    }
+
+    const payload = await response.json();
+    const content = payload?.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text || "")
+      .join("\n");
+    if (!content) throw new Error("Empty response from Gemini");
+    return extractJson(content);
+  }
+
   async function callLlm({ provider, apiKey, model, system, user }) {
     const providerId = provider || "xai";
     const cfg = providerConfig(providerId);
@@ -126,6 +162,15 @@ window.MMC = window.MMC || {};
 
     if (providerId === "anthropic") {
       return callAnthropic({
+        apiKey,
+        model: resolvedModel,
+        system: `${system}\n\nReturn ONLY valid JSON. No markdown.`,
+        user,
+      });
+    }
+
+    if (providerId === "gemini") {
+      return callGemini({
         apiKey,
         model: resolvedModel,
         system: `${system}\n\nReturn ONLY valid JSON. No markdown.`,
