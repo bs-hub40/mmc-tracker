@@ -5,23 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0c0e12" />
     <meta name="color-scheme" content="dark" />
-    <title>MMC Tracker</title>
+    <title>Log it</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-icon" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-icon" />
+    <link rel="shortcut icon" href="favicon.png?v=20260907-icon" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-icon" />
+    <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-stayin" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-icon" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="brand auth-brand">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-icon" alt="" width="36" height="36" />
           <div>
-            <h1>MMC Tracker</h1>
-            <p class="tagline">Your private nutrition &amp; activity log</p>
+            <h1>Log it</h1>
+            <p class="tagline">AI powered Food, Activity, and Weight Tracker</p>
           </div>
         </div>
 
@@ -70,7 +75,7 @@
           Continue with Google
         </button>
         <p class="field-help" id="google-auth-help">
-          Sign in with Google to save your log in an MMC Tracker folder on your Drive.
+          Sign in with Google to save your log in a Log it folder on your Drive.
         </p>
         <p class="field-help">
           <a href="privacy.html">Privacy</a>
@@ -81,10 +86,10 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-icon" alt="" width="36" height="36" />
           <div>
-            <h1>MMC Tracker</h1>
-            <p class="tagline" id="user-tagline">Nutrition · activity · weight</p>
+            <h1>Log it</h1>
+            <p class="tagline" id="user-tagline">Food · activity · weight</p>
           </div>
         </div>
         <div class="topbar-actions">
@@ -346,7 +351,7 @@
         <section class="settings-panel" data-settings-panel="quick" hidden>
           <h2 class="settings-title">Quick actions</h2>
           <p class="field-help">
-            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here, or tap <strong>Shortcut</strong> on a logged meal or workout to save it without calling AI again. After that, tapping the button logs it instantly.
+            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here, or tap <strong>Add Shortcut</strong> on a logged meal or workout, name it, and save. After that, tapping the button logs it instantly.
           </p>
           <div class="qa-type-tabs" role="tablist" aria-label="Quick action type">
             <button type="button" class="tab active" data-qa-type="nutrition" role="tab" aria-selected="true">
@@ -363,7 +368,7 @@
         <section class="settings-panel" data-settings-panel="ai" hidden>
           <h2 class="settings-title">AI for logging</h2>
           <p class="field-help">
-            Pick Grok, Claude, ChatGPT, or Gemini. Follow the two cards, then paste the key. Each AI keeps its own key. You pay that provider — MMC Tracker never sees a bill.
+            Pick Grok, Claude, ChatGPT, or Gemini. Follow the two cards, then paste the key. Each AI keeps its own key. You pay that provider — Log it never sees a bill.
           </p>
           <p class="field-label">Choose your AI</p>
           <div id="settings-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
@@ -407,14 +412,14 @@
           <h2 class="settings-title">Account</h2>
           <p class="account-line">Signed in as <strong id="settings-username">—</strong></p>
           <p class="field-help" id="account-help">
-            Local accounts stay on this browser. Google accounts sync to an <strong>MMC Tracker</strong> folder in your Drive.
+            Local accounts stay on this browser. Google accounts sync to a <strong>Log it</strong> folder in your Drive.
           </p>
           <div id="drive-sync-box" class="sync-box" hidden>
             <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
             <p class="drive-links" id="drive-links" hidden></p>
             <button type="button" class="btn btn-primary" id="drive-sync-btn">Sync now</button>
             <p class="field-help">
-              Backups go in a Drive folder named <strong>MMC Tracker</strong>. After you sync, open it from the links above.
+              Backups go in a Drive folder named <strong>Log it</strong>. After you sync, open it from the links above.
             </p>
             <p class="log-hint" id="drive-sync-hint" hidden></p>
           </div>
@@ -445,15 +450,27 @@
     <div class="modal-backdrop" id="qa-slot-modal" hidden>
       <div class="modal edit-modal" role="dialog" aria-modal="true" aria-labelledby="qa-slot-title">
         <div class="modal-header">
-          <h2 id="qa-slot-title">Save as quick action</h2>
+          <h2 id="qa-slot-title">Add shortcut</h2>
           <button type="button" class="icon-btn" id="qa-slot-cancel" aria-label="Close">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
         </div>
-        <p class="field-help" id="qa-slot-lead">All 3 shortcuts are full. Pick one to replace.</p>
-        <div id="qa-slot-choices" class="qa-slot-choices"></div>
+        <label class="field-label" for="qa-slot-name">Shortcut name</label>
+        <input
+          type="text"
+          id="qa-slot-name"
+          class="field-input"
+          maxlength="40"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="e.g. Breakfast"
+        />
+        <p class="field-help" id="qa-slot-lead">Give it a name you will recognize on the Nutrition or Exercise tab.</p>
+        <p class="log-hint" id="qa-slot-hint" hidden></p>
+        <div id="qa-slot-choices" class="qa-slot-choices" hidden></div>
+        <button type="button" class="btn btn-primary" id="qa-slot-save">Save shortcut</button>
       </div>
     </div>
 
@@ -477,12 +494,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260907-stayin"></script>
-    <script src="js/storage.js?v=20260907-stayin"></script>
-    <script src="js/providers.js?v=20260907-stayin"></script>
-    <script src="js/auth.js?v=20260907-stayin"></script>
-    <script src="js/google.js?v=20260907-stayin"></script>
-    <script src="js/grok.js?v=20260907-stayin"></script>
-    <script src="js/app.js?v=20260907-stayin"></script>
+    <script src="js/config.js?v=20260907-icon"></script>
+    <script src="js/storage.js?v=20260907-icon"></script>
+    <script src="js/providers.js?v=20260907-icon"></script>
+    <script src="js/auth.js?v=20260907-icon"></script>
+    <script src="js/google.js?v=20260907-icon"></script>
+    <script src="js/grok.js?v=20260907-icon"></script>
+    <script src="js/app.js?v=20260907-icon"></script>
   </body>
 </html>

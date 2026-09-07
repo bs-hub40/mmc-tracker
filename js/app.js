@@ -185,6 +185,9 @@
     qaSlotChoices: document.getElementById("qa-slot-choices"),
     qaSlotCancel: document.getElementById("qa-slot-cancel"),
     qaSlotLead: document.getElementById("qa-slot-lead"),
+    qaSlotName: document.getElementById("qa-slot-name"),
+    qaSlotSave: document.getElementById("qa-slot-save"),
+    qaSlotHint: document.getElementById("qa-slot-hint"),
   };
 
   let editTarget = null;
@@ -388,7 +391,7 @@
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = !clientId;
     if (els.googleAuthHelp) {
       els.googleAuthHelp.textContent = clientId
-        ? "Sign in with Google to save your log in an MMC Tracker folder on your Drive."
+        ? "Sign in with Google to save your log in a Log it folder on your Drive."
         : "Google sign-in is not configured for this app build.";
     }
   }
@@ -572,7 +575,7 @@
     if (els.accountHelp) {
       els.accountHelp.textContent =
         session?.provider === "google"
-          ? "Signed in with Google. Your log syncs to an MMC Tracker folder in this Google Drive."
+          ? "Signed in with Google. Your log syncs to a Log it folder in this Google Drive."
           : "Local account on this browser. Sign in with Google to sync across phone and desktop.";
     }
     if (els.googleClientId) els.googleClientId.value = getGoogleClientId();
@@ -597,7 +600,7 @@
         const bits = [];
         if (status.folderUrl) {
           bits.push(
-            `<a href="${status.folderUrl}" target="_blank" rel="noopener noreferrer">Open MMC Tracker folder</a>`
+            `<a href="${status.folderUrl}" target="_blank" rel="noopener noreferrer">Open Log it folder</a>`
           );
         }
         if (status.fileUrl) {
@@ -982,9 +985,8 @@
     const parsed = sanitizeQaMealParsed(meal);
     if (!parsed) return null;
     const names = (meal.items || []).map((item) => item.name).filter(Boolean);
-    const label = (names[0] || "Meal").slice(0, 40);
-    const prompt = String(meal.rawText || names.join(", ") || label).trim().slice(0, 500);
-    return { id: uid(), label, prompt, parsed };
+    const prompt = String(meal.rawText || names.join(", ") || "Meal").trim().slice(0, 500);
+    return { id: uid(), label: "", prompt, parsed };
   }
 
   function quickActionFromActivity(act) {
@@ -1007,22 +1009,34 @@
         summary: act.summary || "",
       });
       if (!fallback) return null;
-      const label = String(act.text || act.summary || "Exercise").slice(0, 40);
-      const prompt = String(act.rawText || act.text || label).trim().slice(0, 500);
-      return { id: uid(), label, prompt, parsed: fallback };
+      const prompt = String(act.rawText || act.text || "Exercise").trim().slice(0, 500);
+      return { id: uid(), label: "", prompt, parsed: fallback };
     }
     if (!parsed) return null;
     const names = (act.items || []).map((item) => item.name).filter(Boolean);
-    const label = (names[0] || act.text || "Exercise").slice(0, 40);
-    const prompt = String(act.rawText || act.text || names.join(", ") || label)
+    const prompt = String(act.rawText || act.text || names.join(", ") || "Exercise")
       .trim()
       .slice(0, 500);
-    return { id: uid(), label, prompt, parsed };
+    return { id: uid(), label: "", prompt, parsed };
   }
 
   function closeQaSlotModal() {
     pendingQaSave = null;
+    if (els.qaSlotName) els.qaSlotName.value = "";
+    setHint(els.qaSlotHint, "");
     if (els.qaSlotModal) els.qaSlotModal.hidden = true;
+  }
+
+  function namedPendingAction() {
+    const label = (els.qaSlotName?.value || "").trim().slice(0, 40);
+    if (!label) {
+      setHint(els.qaSlotHint, "Name this shortcut before saving.");
+      els.qaSlotName?.focus();
+      return null;
+    }
+    if (!pendingQaSave?.action) return null;
+    setHint(els.qaSlotHint, "");
+    return { ...pendingQaSave.action, label };
   }
 
   function commitQuickActionSlot(type, index, action) {
@@ -1042,8 +1056,7 @@
     showToast(`Saved ${action.label} — tap it on ${where} to log instantly`, true);
   }
 
-  function openQaReplaceModal(type, action) {
-    pendingQaSave = { type, action };
+  function showQaReplaceChoices(type) {
     const slots = sanitizeQuickActions(state.quickActions)[type];
     if (els.qaSlotLead) {
       els.qaSlotLead.textContent =
@@ -1051,7 +1064,9 @@
           ? "All 3 exercise shortcuts are full. Pick one to replace."
           : "All 3 nutrition shortcuts are full. Pick one to replace.";
     }
+    if (els.qaSlotSave) els.qaSlotSave.hidden = true;
     if (els.qaSlotChoices) {
+      els.qaSlotChoices.hidden = false;
       els.qaSlotChoices.innerHTML = slots
         .map((slot, i) => {
           const kcal =
@@ -1069,7 +1084,41 @@
         })
         .join("");
     }
+  }
+
+  function openQaNameModal(type, action) {
+    pendingQaSave = { type, action };
+    if (els.qaSlotName) {
+      els.qaSlotName.value = "";
+      els.qaSlotName.placeholder =
+        type === "activity" ? "e.g. Morning walk" : "e.g. Breakfast";
+    }
+    if (els.qaSlotLead) {
+      els.qaSlotLead.textContent =
+        "Give it a name you will recognize. This becomes the button label.";
+    }
+    if (els.qaSlotSave) els.qaSlotSave.hidden = false;
+    if (els.qaSlotChoices) {
+      els.qaSlotChoices.hidden = true;
+      els.qaSlotChoices.innerHTML = "";
+    }
+    setHint(els.qaSlotHint, "");
     if (els.qaSlotModal) els.qaSlotModal.hidden = false;
+    setTimeout(() => els.qaSlotName?.focus(), 50);
+  }
+
+  function saveNamedQuickAction() {
+    const action = namedPendingAction();
+    if (!action || !pendingQaSave) return;
+    const type = pendingQaSave.type;
+    const slots = sanitizeQuickActions(state.quickActions)[type];
+    const empty = slots.findIndex((slot) => !slot.parsed && !slot.prompt && !slot.label);
+    if (empty !== -1) {
+      commitQuickActionSlot(type, empty, action);
+      return;
+    }
+    pendingQaSave.action = action;
+    showQaReplaceChoices(type);
   }
 
   function saveEntryAsQuickAction(type, id) {
@@ -1093,12 +1142,7 @@
       showToast(`${duplicate.label} is already a quick action`, true);
       return;
     }
-    const empty = slots.findIndex((slot) => !slot.parsed && !slot.prompt && !slot.label);
-    if (empty !== -1) {
-      commitQuickActionSlot(type, empty, action);
-      return;
-    }
-    openQaReplaceModal(type, action);
+    openQaNameModal(type, action);
   }
 
   function renderStreak() {
@@ -1212,7 +1256,7 @@
                 <div class="activity-name">${names || "Meal"}</div>
               </div>
               <div class="entry-actions">
-                <button type="button" class="meal-edit" data-qa-from-meal="${meal.id}">Shortcut</button>
+                <button type="button" class="meal-edit" data-qa-from-meal="${meal.id}">Add Shortcut</button>
                 <button type="button" class="meal-edit" data-edit-meal="${meal.id}">Edit</button>
                 <button type="button" class="meal-delete" data-delete-meal="${meal.id}">Delete</button>
               </div>
@@ -1252,7 +1296,7 @@
             <div class="meal-top">
               <div class="meal-time">${formatTime(act.loggedAt)}</div>
               <div class="entry-actions">
-                <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Shortcut</button>
+                <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Add Shortcut</button>
                 <button type="button" class="meal-edit" data-edit-activity="${act.id}">Edit</button>
                 <button type="button" class="meal-delete" data-delete-activity="${act.id}">Delete</button>
               </div>
@@ -2081,13 +2125,22 @@
     els.qaSlotModal?.addEventListener("click", (e) => {
       if (e.target === els.qaSlotModal) closeQaSlotModal();
     });
+    els.qaSlotSave?.addEventListener("click", saveNamedQuickAction);
+    els.qaSlotName?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveNamedQuickAction();
+      }
+    });
     els.qaSlotChoices?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-qa-replace]");
       if (!btn || !pendingQaSave) return;
+      const action = namedPendingAction();
+      if (!action) return;
       commitQuickActionSlot(
         pendingQaSave.type,
         Number(btn.getAttribute("data-qa-replace")),
-        pendingQaSave.action
+        action
       );
     });
     document.addEventListener("visibilitychange", () => {

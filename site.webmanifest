@@ -1,0 +1,17 @@
+{
+  "name": "Log it",
+  "short_name": "Log it",
+  "description": "AI powered Food, Activity, and Weight Tracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0c0e12",
+  "theme_color": "#0c0e12",
+  "icons": [
+    {
+      "src": "icons/log-it-icon.png?v=20260907-icon",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

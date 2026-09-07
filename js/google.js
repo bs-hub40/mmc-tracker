@@ -6,7 +6,8 @@ window.MMC = window.MMC || {};
   // and would force Google verification + a 100-user cap for random people.
   const SCOPES = `openid email profile ${DRIVE_FILE_SCOPE}`;
   const GIS_SRC = "https://accounts.google.com/gsi/client";
-  const FOLDER_NAME = "MMC Tracker";
+  const FOLDER_NAME = "Log it";
+  const LEGACY_FOLDER_NAME = "MMC Tracker";
   const TOKEN_KEY = "mmc-google-token-v1";
   const CONSENT_KEY = "mmc-google-consented";
   const FILE_NAME = () => window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
@@ -272,6 +273,23 @@ window.MMC = window.MMC || {};
       mimeType: "application/vnd.google-apps.folder",
     });
     if (!folder) {
+      const legacy = await findNamedFile({
+        name: LEGACY_FOLDER_NAME,
+        mimeType: "application/vnd.google-apps.folder",
+      });
+      if (legacy?.id) {
+        folder = await driveJson(
+          `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(legacy.id)}?fields=id,name,webViewLink`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: FOLDER_NAME }),
+          }
+        );
+        folder = folder || legacy;
+      }
+    }
+    if (!folder) {
       folder = await driveJson("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -374,7 +392,7 @@ window.MMC = window.MMC || {};
     const name = FILE_NAME();
     const body = JSON.stringify(state);
     const parent = await ensureVisibleFolder();
-    if (!parent) throw new Error("Could not create the MMC Tracker folder in Drive.");
+    if (!parent) throw new Error("Could not create the Log it folder in Drive.");
 
     const existing = await findVisibleBackup();
     if (existing?.id) {

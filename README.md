@@ -1,6 +1,6 @@
-# MMC Tracker
+# Log it
 
-Mobile-first dark-mode web app for daily pro-metabolic nutrition and activity tracking.
+AI powered food, activity, and weight tracker.
 
 ## Targets
 
@@ -15,7 +15,7 @@ Mobile-first dark-mode web app for daily pro-metabolic nutrition and activity tr
 ## Accounts & settings
 
 - **Local accounts** — username + password. Data stays in this browser.
-- **Google accounts** — Continue with Google. Data syncs to an **MMC Tracker** folder on that person's Drive.
+- **Google accounts** — Continue with Google. Data syncs to a **Log it** folder on that person's Drive.
 - **Settings** — submenu for goals, instant quick actions, AI setup (Grok, Claude, ChatGPT, Gemini), and account / Drive.
 
 People who use the app never create a Google Cloud project. They tap **Continue with Google** and Allow.
