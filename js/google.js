@@ -413,9 +413,7 @@ window.MMC = window.MMC || {};
     pendingPayload = state;
     if (!accessToken) return;
     clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => {
-      window.MMC.flushDrivePush();
-    }, 400);
+    window.MMC.flushDrivePush();
   };
 
   window.MMC.mergeDriveState = function mergeDriveState(localState, remoteState) {

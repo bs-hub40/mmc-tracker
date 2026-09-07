@@ -42,6 +42,7 @@
     drivePull,
     drivePush,
     scheduleDrivePush,
+    flushDrivePush,
     mergeDriveState,
   } = window.MMC;
 
@@ -202,6 +203,7 @@
     saveState(state);
     if (session?.provider === "google") {
       scheduleDrivePush(state);
+      flushDrivePush();
       renderDriveStatus();
     }
   }
@@ -574,12 +576,24 @@
     }
     try {
       const remote = await drivePull();
-      if (remote) {
+      if (!remote) {
+        await drivePush(state);
+        renderDriveStatus();
+        return;
+      }
+
+      const localTs = Number(state.updatedAt) || 0;
+      const remoteTs = Number(remote.updatedAt) || 0;
+      if (remoteTs >= localTs) {
+        state = remote;
+        saveState(state);
+        renderAll();
+      } else {
         state = mergeDriveState(state, remote);
         saveState(state);
         renderAll();
+        await drivePush(state);
       }
-      await drivePush(state);
       renderDriveStatus();
     } catch (err) {
       setHint(els.driveSyncHint, err.message || "Drive sync failed.");
@@ -615,13 +629,8 @@
       if (!ok) {
         await googleSignIn();
       }
-      const remote = await drivePull();
-      if (remote) state = mergeDriveState(state, remote);
-      saveState(state);
-      await drivePush(state);
-      renderAll();
-      setHint(els.driveSyncHint, "Synced with Google Drive.", true);
-      renderDriveStatus();
+      await syncFromDrive();
+      setHint(els.driveSyncHint, "Pulled latest from Google Drive.", true);
     } catch (err) {
       setHint(els.driveSyncHint, err.message || "Drive sync failed.");
     } finally {
