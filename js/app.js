@@ -44,11 +44,6 @@
     scheduleDrivePush,
     mergeDriveState,
   } = window.MMC;
-    normalizeProvider,
-    normalizeModel,
-    migrateAiSettings,
-    sanitizeQuickActions,
-  } = window.MMC;
 
   const LOG_COPY = {
     nutrition: {
