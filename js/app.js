@@ -36,6 +36,9 @@
     clonePayload,
     sanitizeQaMealParsed,
     sanitizeQaActivityParsed,
+    THEMES,
+    sanitizeTheme,
+    THEME_KEY,
     getGoogleClientId,
     setGoogleClientId,
     googleSignIn,
@@ -51,19 +54,61 @@
 
   const LOG_COPY = {
     nutrition: {
-      label: "Log food with AI",
+      label: "Log food",
       placeholder:
         'e.g. "Coffee with 1 tbsp maple syrup, 4 oz cooked skirt steak, 1 slice mozzarella"',
-      button: "Parse & Log",
-      busy: "Parsing…",
     },
     activity: {
-      label: "Log exercise with AI",
+      label: "Log activity",
       placeholder: 'e.g. "45 min brisk walk" or "Upper body lift, 50 min, moderate"',
-      button: "Analyze & Log",
-      busy: "Analyzing…",
     },
   };
+
+  function logButtonLabel() {
+    return "Log It";
+  }
+
+  const LOG_WAIT = {
+    nutrition: [
+      "Sending this to your AI…",
+      "Building the plate…",
+      "Finding the macros…",
+      "Jotting it in your log…",
+    ],
+    activity: [
+      "Sending this to your AI…",
+      "Mapping the workout…",
+      "Estimating the burn…",
+      "Jotting it in your log…",
+    ],
+  };
+
+  let logWaitTimer = null;
+  let logWaitIndex = 0;
+
+  function stopLogWaitCopy() {
+    if (logWaitTimer) {
+      clearInterval(logWaitTimer);
+      logWaitTimer = null;
+    }
+    logWaitIndex = 0;
+  }
+
+  function paintLogWaitCopy() {
+    const lines = LOG_WAIT[currentMode] || LOG_WAIT.nutrition;
+    const line = lines[logWaitIndex % lines.length];
+    const text = els.logBtn?.querySelector(".btn-text");
+    if (text) text.textContent = line;
+  }
+
+  function startLogWaitCopy() {
+    stopLogWaitCopy();
+    paintLogWaitCopy();
+    logWaitTimer = setInterval(() => {
+      logWaitIndex += 1;
+      paintLogWaitCopy();
+    }, 3200);
+  }
 
   let state = null;
   let session = null;
@@ -94,6 +139,7 @@
     logLabel: document.getElementById("log-label"),
     logInput: document.getElementById("log-input"),
     logBtn: document.getElementById("log-btn"),
+    micBtn: document.getElementById("mic-btn"),
     logHint: document.getElementById("log-hint"),
     mealList: document.getElementById("meal-list"),
     emptyState: document.getElementById("empty-state"),
@@ -150,6 +196,8 @@
     goalFiber: document.getElementById("goal-fiber"),
     saveGoalsBtn: document.getElementById("save-goals-btn"),
     goalsHint: document.getElementById("goals-hint"),
+    themeSwatches: document.getElementById("theme-swatches"),
+    themeHint: document.getElementById("theme-hint"),
     apiKey: document.getElementById("api-key"),
     apiKeyHelp: document.getElementById("api-key-help"),
     providerSelect: document.getElementById("provider-select"),
@@ -225,6 +273,31 @@
     }
   }
 
+  function paintThemePicker(theme) {
+    const cfg = THEMES[theme] || THEMES.ember;
+    document.querySelectorAll("[data-theme-id]").forEach((btn) => {
+      const on = btn.getAttribute("data-theme-id") === theme;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    if (els.themeHint) els.themeHint.textContent = cfg.hint;
+  }
+
+  function applyTheme(id, save = false) {
+    const theme = sanitizeTheme(id);
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* ignore quota */
+    }
+    paintThemePicker(theme);
+    if (save && state && state.theme !== theme) {
+      state.theme = theme;
+      persist();
+    }
+  }
+
   function setHint(el, message, ok = false) {
     if (!message) {
       el.hidden = true;
@@ -260,6 +333,7 @@
     if (currentMode === "nutrition" || currentMode === "activity") {
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
+      if (els.micBtn) els.micBtn.disabled = logBusy || !ready;
     }
     if (!ready) renderOnboard();
     renderQuickActions();
@@ -326,22 +400,120 @@
     if (els.onboardApiKey) els.onboardApiKey.value = "";
     fillSettingsForm();
     syncAiGate();
+    syncLogPanel();
     renderQuickActions();
     showToast(`${cfg.label} connected. You can log now.`, true);
     els.logInput?.focus();
   }
 
+  let speechRec = null;
+  let speechListening = false;
+
+  function speechEngine() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function setMicListening(on) {
+    speechListening = on;
+    if (!els.micBtn) return;
+    els.micBtn.classList.toggle("listening", on);
+    els.micBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    els.micBtn.setAttribute("aria-label", on ? "Stop listening" : "Speak to fill");
+    els.micBtn.title = on ? "Stop listening" : "Speak";
+  }
+
+  function stopSpeech() {
+    if (speechRec) {
+      try {
+        speechRec.onend = null;
+        speechRec.onerror = null;
+        speechRec.onresult = null;
+        speechRec.stop();
+      } catch {
+        /* already stopped */
+      }
+      speechRec = null;
+    }
+    setMicListening(false);
+  }
+
+  function toggleSpeech() {
+    const Ctor = speechEngine();
+    if (!Ctor) {
+      showToast("Speech to text isn’t available in this browser. Try Chrome or Safari.", false);
+      return;
+    }
+    if (speechListening) {
+      stopSpeech();
+      return;
+    }
+    if (els.logInput?.disabled) return;
+    try {
+      const rec = new Ctor();
+      rec.lang = navigator.language || "en-US";
+      rec.interimResults = true;
+      rec.continuous = true;
+      rec.maxAlternatives = 1;
+      const base = (els.logInput.value || "").trim();
+      let finals = "";
+      rec.onresult = (event) => {
+        let interim = "";
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
+          const piece = event.results[i][0]?.transcript || "";
+          if (event.results[i].isFinal) finals = `${finals} ${piece}`.trim();
+          else interim += piece;
+        }
+        const parts = [base, finals, interim.trim()].filter(Boolean);
+        els.logInput.value = parts.join(" ");
+      };
+      rec.onerror = (event) => {
+        const err = event?.error;
+        if (err === "aborted" || err === "no-speech") return;
+        stopSpeech();
+        if (err === "not-allowed" || err === "service-not-allowed") {
+          showToast("Microphone permission is blocked for this site.", false);
+        } else {
+          showToast("Could not use the microphone.", false);
+        }
+      };
+      rec.onend = () => {
+        if (speechListening && speechRec === rec) {
+          try {
+            rec.start();
+            return;
+          } catch {
+            /* gesture required; fall through */
+          }
+        }
+        if (speechRec === rec) speechRec = null;
+        setMicListening(false);
+      };
+      speechRec = rec;
+      rec.start();
+      setMicListening(true);
+    } catch {
+      stopSpeech();
+      showToast("Could not start the microphone.", false);
+    }
+  }
+
   function setBusy(busy) {
     if (currentMode === "weight" || currentMode === "settings") return;
     logBusy = busy;
-    const copy = LOG_COPY[currentMode];
     const ready = hasAiKey();
     els.logBtn.disabled = busy || !ready;
     els.logInput.disabled = busy || !ready;
+    if (els.micBtn) els.micBtn.disabled = busy || !ready;
+    if (busy) stopSpeech();
     const spinner = els.logBtn.querySelector(".btn-spinner");
     const text = els.logBtn.querySelector(".btn-text");
     spinner.hidden = !busy;
-    text.textContent = busy ? copy.busy : copy.button;
+    if (busy) {
+      startLogWaitCopy();
+    } else {
+      stopLogWaitCopy();
+      if (text) text.textContent = logButtonLabel();
+    }
     if (els.quickActions) renderQuickActions();
   }
 
@@ -364,6 +536,7 @@
     session = nextSession;
     state = ensureToday(loadState());
     Object.assign(state, migrateAiSettings(state));
+    applyTheme(state.theme);
     saveState(state);
     els.authScreen.hidden = true;
     els.appShell.hidden = false;
@@ -418,7 +591,11 @@
     const copy = LOG_COPY[currentMode];
     els.logLabel.textContent = copy.label;
     els.logInput.placeholder = copy.placeholder;
-    if (!logBusy) els.logBtn.querySelector(".btn-text").textContent = copy.button;
+    if (!logBusy) {
+      const text = els.logBtn.querySelector(".btn-text");
+      if (text) text.textContent = logButtonLabel();
+    }
+    if (els.logJumpBtn) els.logJumpBtn.textContent = "＋ Log food";
     syncAiGate();
   }
 
@@ -444,6 +621,7 @@
       persist();
     }
     currentMode = mode;
+    if (mode !== "nutrition" && mode !== "activity") stopSpeech();
     document.querySelectorAll(".mode-tabs .mode-tab").forEach((tab) => {
       const active = tab.dataset.mode === mode;
       tab.classList.toggle("active", active);
@@ -586,6 +764,7 @@
     setHint(els.driveSyncHint, "");
     renderQaEditor();
     renderDriveStatus();
+    paintThemePicker(sanitizeTheme(state.theme));
   }
 
   function renderDriveStatus() {
@@ -1427,7 +1606,7 @@
     const dots = points
       .map(
         (p) =>
-          `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="#f0a030" stroke="#0c0e12" stroke-width="1.5">
+          `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="var(--accent)" stroke="#0c0e12" stroke-width="1.5">
             <title>${p.date}: ${round1(p.weight)} ${p.unit}</title>
           </circle>`
       )
@@ -1436,8 +1615,8 @@
     els.weightChart.innerHTML = `
       <svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Weight trendline">
         ${yTicks.join("")}
-        <path d="${area}" fill="rgba(240,160,48,0.12)"></path>
-        <path d="${line}" fill="none" stroke="#f0a030" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path>
+        <path d="${area}" fill="color-mix(in srgb, var(--accent) 12%, transparent)"></path>
+        <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path>
         ${dots}
         ${xLabels.join("")}
       </svg>
@@ -1493,6 +1672,7 @@
     if (!state) return;
     state = ensureToday(state);
     state.quickActions = sanitizeQuickActions(state.quickActions);
+    applyTheme(state.theme);
     renderStreak();
     renderEnergy();
     renderMacros();
@@ -1934,6 +2114,7 @@
     setActiveApiKey(state, key);
     persist();
     syncAiGate();
+    syncLogPanel();
     fillSettingsForm();
     setHint(
       els.apiHint,
@@ -1976,6 +2157,11 @@
     });
 
     els.settingsBtn?.addEventListener("click", () => setMode("settings"));
+    els.themeSwatches?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-theme-id]");
+      if (!btn || !els.themeSwatches.contains(btn)) return;
+      applyTheme(btn.getAttribute("data-theme-id"), true);
+    });
     els.logJumpBtn?.addEventListener("click", () => {
       setView("today");
       updateLogVisibility();
@@ -2042,6 +2228,8 @@
     });
 
     els.logBtn.addEventListener("click", () => handleLog());
+    els.micBtn?.addEventListener("click", () => toggleSpeech());
+    if (els.micBtn && !speechEngine()) els.micBtn.hidden = true;
     els.logInput.addEventListener("keydown", (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();

@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="ember">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0c0e12" />
     <meta name="color-scheme" content="dark" />
     <title>Log it</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-icon" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-icon" />
-    <link rel="shortcut icon" href="favicon.png?v=20260907-icon" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-icon" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-theme" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-theme" />
+    <link rel="shortcut icon" href="favicon.png?v=20260907-theme" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-theme" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,13 +17,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-icon" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-theme" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="brand auth-brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-icon" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-theme" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline">AI powered Food, Activity, and Weight Tracker</p>
@@ -86,7 +86,7 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-icon" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-theme" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline" id="user-tagline">Food · activity · weight</p>
@@ -173,11 +173,19 @@
         </div>
 
         <div id="log-compose">
-          <label class="log-label" id="log-label" for="log-input">Log with AI</label>
-          <textarea id="log-input" rows="3" placeholder=""></textarea>
+          <label class="log-label" id="log-label" for="log-input">Log food</label>
+          <div class="log-input-wrap">
+            <textarea id="log-input" rows="3" placeholder=""></textarea>
+            <button type="button" class="mic-btn" id="mic-btn" aria-label="Speak to fill" aria-pressed="false" title="Speak">
+              <svg class="mic-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6" />
+              </svg>
+            </button>
+          </div>
           <div class="log-actions">
             <button type="button" class="btn btn-primary" id="log-btn">
-              <span class="btn-text">Parse &amp; Log</span>
+              <span class="btn-text">Log It</span>
               <span class="btn-spinner" hidden aria-hidden="true"></span>
             </button>
           </div>
@@ -186,7 +194,7 @@
         <p class="log-hint" id="log-hint" hidden></p>
       </section>
 
-      <button type="button" class="log-jump" id="log-jump-btn" hidden>＋ Log food with AI</button>
+      <button type="button" class="log-jump" id="log-jump-btn" hidden>＋ Log food</button>
 
       <div id="toast" class="toast" hidden role="status" aria-live="polite"></div>
 
@@ -304,6 +312,36 @@
       </div>
 
       <div id="mode-settings" class="mode-view" hidden>
+        <section class="theme-picker" aria-labelledby="theme-picker-label">
+          <h2 class="settings-title" id="theme-picker-label">Theme</h2>
+          <p class="field-help">
+            Colors chosen to feel good to come back to. Buttons, outlines, and highlights follow your pick.
+          </p>
+          <div class="theme-swatches" id="theme-swatches" role="radiogroup" aria-label="Theme color">
+            <button type="button" class="theme-swatch" data-theme-id="ember" role="radio" aria-checked="true">
+              <span class="theme-swatch-dot" aria-hidden="true"></span>
+              <span class="theme-swatch-name">Ember</span>
+            </button>
+            <button type="button" class="theme-swatch" data-theme-id="bloom" role="radio" aria-checked="false">
+              <span class="theme-swatch-dot" aria-hidden="true"></span>
+              <span class="theme-swatch-name">Bloom</span>
+            </button>
+            <button type="button" class="theme-swatch" data-theme-id="grove" role="radio" aria-checked="false">
+              <span class="theme-swatch-dot" aria-hidden="true"></span>
+              <span class="theme-swatch-name">Grove</span>
+            </button>
+            <button type="button" class="theme-swatch" data-theme-id="tide" role="radio" aria-checked="false">
+              <span class="theme-swatch-dot" aria-hidden="true"></span>
+              <span class="theme-swatch-name">Tide</span>
+            </button>
+            <button type="button" class="theme-swatch" data-theme-id="aura" role="radio" aria-checked="false">
+              <span class="theme-swatch-dot" aria-hidden="true"></span>
+              <span class="theme-swatch-name">Aura</span>
+            </button>
+          </div>
+          <p class="theme-hint" id="theme-hint">Warm energy when you sit down to log.</p>
+        </section>
+
         <nav class="settings-nav" role="tablist" aria-label="Settings sections">
           <button type="button" class="settings-nav-btn active" data-settings-section="goals" role="tab" aria-selected="true">
             Goals
@@ -491,15 +529,19 @@
           if (authEl) authEl.hidden = true;
           if (appEl) appEl.hidden = false;
         }
+        var theme = localStorage.getItem("mmc-theme-v1");
+        if (theme === "ember" || theme === "bloom" || theme === "grove" || theme === "tide" || theme === "aura") {
+          document.documentElement.setAttribute("data-theme", theme);
+        }
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260907-icon"></script>
-    <script src="js/storage.js?v=20260907-icon"></script>
-    <script src="js/providers.js?v=20260907-icon"></script>
-    <script src="js/auth.js?v=20260907-icon"></script>
-    <script src="js/google.js?v=20260907-icon"></script>
-    <script src="js/grok.js?v=20260907-icon"></script>
-    <script src="js/app.js?v=20260907-icon"></script>
+    <script src="js/config.js?v=20260907-theme"></script>
+    <script src="js/storage.js?v=20260907-theme"></script>
+    <script src="js/providers.js?v=20260907-theme"></script>
+    <script src="js/auth.js?v=20260907-theme"></script>
+    <script src="js/google.js?v=20260907-theme"></script>
+    <script src="js/grok.js?v=20260907-theme"></script>
+    <script src="js/app.js?v=20260907-theme"></script>
   </body>
 </html>

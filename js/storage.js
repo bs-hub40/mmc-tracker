@@ -186,6 +186,40 @@ Rules:
     };
   },
 
+  THEMES: {
+    ember: {
+      id: "ember",
+      name: "Ember",
+      hint: "Warm energy when you sit down to log.",
+    },
+    bloom: {
+      id: "bloom",
+      name: "Bloom",
+      hint: "Soft and kind, so tracking feels supportive.",
+    },
+    grove: {
+      id: "grove",
+      name: "Grove",
+      hint: "Fresh growth — progress you can see.",
+    },
+    tide: {
+      id: "tide",
+      name: "Tide",
+      hint: "Steady calm for a daily rhythm.",
+    },
+    aura: {
+      id: "aura",
+      name: "Aura",
+      hint: "A little spark of reward each time you log.",
+    },
+  },
+  THEME_KEY: "mmc-theme-v1",
+  DEFAULT_THEME: "ember",
+
+  sanitizeTheme(id) {
+    return window.MMC.THEMES[id] ? id : window.MMC.DEFAULT_THEME;
+  },
+
   defaultState() {
     const today = window.MMC.todayKey();
     return {
@@ -193,6 +227,7 @@ Rules:
       apiKeys: { xai: "", openai: "", anthropic: "", gemini: "" },
       provider: "xai",
       model: "grok-4.6",
+      theme: window.MMC.DEFAULT_THEME,
       activeDate: today,
       weightUnit: "lb",
       weights: [],
@@ -213,6 +248,7 @@ Rules:
       weights: Array.isArray(parsed?.weights) ? parsed.weights : [],
       goals: { ...window.MMC.DEFAULT_TARGETS, ...(parsed?.goals || {}) },
       quickActions: window.MMC.sanitizeQuickActions(parsed?.quickActions),
+      theme: window.MMC.sanitizeTheme(parsed?.theme),
       updatedAt: Number(parsed?.updatedAt) || 0,
     };
     Object.assign(merged, window.MMC.migrateAiSettings(merged));
@@ -270,6 +306,7 @@ Rules:
       weights: window.MMC.mergeWeights(localState.weights, remoteState.weights),
       apiKeys: { ...(older.apiKeys || {}), ...(newer.apiKeys || {}) },
       apiKey: newer.apiKey || older.apiKey || "",
+      theme: window.MMC.sanitizeTheme(newer.theme || older.theme),
       updatedAt: Math.max(localTs, remoteTs),
     });
   },
