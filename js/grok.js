@@ -59,6 +59,7 @@ window.MMC = window.MMC || {};
       body: JSON.stringify({
         model,
         temperature: 0.2,
+        max_tokens: 8192,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
@@ -94,7 +95,7 @@ window.MMC = window.MMC || {};
       },
       body: JSON.stringify({
         model,
-        max_tokens: 4096,
+        max_tokens: 8192,
         temperature: 0.2,
         system,
         messages: [{ role: "user", content: user }],
@@ -130,6 +131,7 @@ window.MMC = window.MMC || {};
         contents: [{ role: "user", parts: [{ text: user }] }],
         generationConfig: {
           temperature: 0.2,
+          maxOutputTokens: 8192,
           responseMimeType: "application/json",
         },
       }),
@@ -252,8 +254,92 @@ window.MMC = window.MMC || {};
     };
   }
 
+  function hasMealShape(data) {
+    return Boolean(data && Array.isArray(data.items) && data.items.length);
+  }
+
+  function looksLikeActivityItems(data) {
+    const first = data?.items?.[0];
+    return Boolean(
+      data &&
+        (data.totalCaloriesBurned != null ||
+          first?.caloriesBurned != null ||
+          first?.durationMin != null)
+    );
+  }
+
+  function asList(value) {
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === "object") return [value];
+    return [];
+  }
+
+  function decorateMeal(data) {
+    return {
+      ...normalizeMealPayload(data),
+      source: String(data.source || data.label || "").trim(),
+    };
+  }
+
+  function decorateActivity(data) {
+    return {
+      ...normalizeActivityPayload(data),
+      source: String(data.source || data.label || "").trim(),
+    };
+  }
+
+  function normalizeLogPayload(data) {
+    if (!data || typeof data !== "object") {
+      throw new Error("Could not read that log. Try a bit more detail.");
+    }
+
+    let mealList = asList(data.meals).filter((item) => item && typeof item === "object");
+    let activityList = asList(data.activities).filter(
+      (item) => item && typeof item === "object"
+    );
+
+    if (!mealList.length && data.meal && typeof data.meal === "object") {
+      mealList = [data.meal];
+    }
+    if (!activityList.length && data.activity && typeof data.activity === "object") {
+      activityList = [data.activity];
+    }
+
+    if (
+      !mealList.length &&
+      !activityList.length &&
+      Array.isArray(data.items) &&
+      data.items.length
+    ) {
+      if (looksLikeActivityItems(data)) activityList = [data];
+      else mealList = [data];
+    }
+
+    const meals = mealList.filter(hasMealShape).map(decorateMeal);
+    const activities = activityList.filter(hasMealShape).map(decorateActivity);
+
+    if (!meals.length && !activities.length) {
+      throw new Error(
+        "Could not tell if that was food or activity. Try again with a bit more detail."
+      );
+    }
+
+    return {
+      kind: meals.length && activities.length ? "both" : meals.length ? "food" : "activity",
+      meals,
+      activities,
+    };
+  }
+
   window.MMC.resolveAiModel = resolveModel;
   window.MMC.getProviderConfig = providerConfig;
+
+  function withContext(context, body) {
+    const reset =
+      "Standalone request. Do not use prior conversation, chat memory, or remembered facts about this user. Use only this message.";
+    const ctx = String(context || "").trim();
+    return ctx ? `${reset}\n\n${ctx}\n\n${body}` : `${reset}\n\n${body}`;
+  }
 
   window.MMC.parseMealWithGrok = async function parseMealWithGrok(opts) {
     const data = await callLlm({
@@ -261,7 +347,7 @@ window.MMC = window.MMC || {};
       apiKey: opts.apiKey,
       model: opts.model,
       system: window.MMC.SYSTEM_PROMPT,
-      user: `Parse this meal into JSON macros:\n\n${opts.text}`,
+      user: withContext(opts.context, `Parse this meal into JSON macros:\n\n${opts.text}`),
     });
     return normalizeMealPayload(data);
   };
@@ -272,8 +358,25 @@ window.MMC = window.MMC || {};
       apiKey: opts.apiKey,
       model: opts.model,
       system: window.MMC.ACTIVITY_SYSTEM_PROMPT,
-      user: `Parse this completed activity into JSON calorie burn estimates:\n\n${opts.text}`,
+      user: withContext(
+        opts.context,
+        `Parse this completed activity into JSON calorie burn estimates:\n\n${opts.text}`
+      ),
     });
     return normalizeActivityPayload(data);
+  };
+
+  window.MMC.parseLogWithGrok = async function parseLogWithGrok(opts) {
+    const data = await callLlm({
+      provider: opts.provider,
+      apiKey: opts.apiKey,
+      model: opts.model,
+      system: window.MMC.LOG_SYSTEM_PROMPT,
+      user: withContext(
+        opts.context,
+        `Classify and parse this log. It may be one item or a full-day recap with several meals and workouts:\n\n${opts.text}`
+      ),
+    });
+    return normalizeLogPayload(data);
   };
 })();

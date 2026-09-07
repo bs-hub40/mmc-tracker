@@ -862,6 +862,43 @@ button {
   margin-top: 1.1rem;
 }
 
+.profile-onboard {
+  z-index: 60;
+  align-items: center;
+}
+
+.profile-qa h2 {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 1.2rem;
+}
+
+.profile-qa-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.profile-qa-actions .btn-ghost {
+  flex: 0 0 auto;
+}
+
+.profile-qa-actions .btn-primary {
+  flex: 1;
+}
+
+.profile-qa .weight-row {
+  margin-top: 0.15rem;
+  grid-template-columns: 1fr auto;
+}
+
+.profile-qa .field-input {
+  width: 100%;
+}
+
+.profile-qa .sex-picks {
+  margin-top: 0.15rem;
+}
+
 @media (min-width: 540px) {
   .modal-backdrop {
     align-items: center;
@@ -1265,6 +1302,44 @@ button {
   font-weight: 600;
 }
 
+.settings-subtitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.92rem;
+}
+
+.profile-block {
+  margin: 1rem 0;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.profile-block .btn-primary {
+  margin-top: 0.85rem;
+}
+
+.sex-picks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.sex-pick {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 650;
+  min-height: 2.6rem;
+}
+
+.sex-pick.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
 .weight-chart-wrap {
   height: 200px;
   margin-bottom: 0.75rem;
@@ -1456,6 +1531,145 @@ button {
 .goal-field .field-input {
   min-height: 0;
   padding: 0.7rem 0.75rem;
+}
+
+.choice-stack {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.85rem;
+}
+
+.choice-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.75rem;
+  min-height: 0;
+}
+
+.choice-pick .choice-name {
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.choice-pick .choice-hint {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.choice-pick.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: var(--amber-soft);
+}
+
+.choice-pick.active .choice-name {
+  color: var(--amber);
+}
+
+.macro-calc {
+  margin-bottom: 1.35rem;
+  padding-bottom: 1.15rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.macro-calc .weight-row {
+  grid-template-columns: 1fr auto;
+}
+
+.macro-results {
+  margin: 0.85rem 0 1rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.macro-results-kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.macro-results h3 {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+}
+
+.macro-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.7rem;
+  margin: 0.55rem 0 0.75rem;
+}
+
+.macro-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.macro-stat span {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.macro-stat strong {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-macro-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin: 0.35rem 0 0.75rem;
+}
+
+.macro-macro {
+  text-align: center;
+  padding: 0.55rem 0.3rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.macro-macro span {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.macro-macro strong {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-results .field-help {
+  margin: 0;
+}
+
+.macro-results .field-help + .field-help {
+  margin-top: 0.55rem;
+}
+
+#macro-apply-btn {
+  width: 100%;
 }
 
 .theme-picker {

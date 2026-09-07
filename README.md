@@ -51,7 +51,7 @@ Live app: `https://bs-hub40.github.io/mmc-tracker/`
 No build step. Open `index.html` in a browser (Chrome/Edge recommended).
 
 1. Gear icon → pick Grok, Claude, ChatGPT, or Gemini → follow the two cards → paste the key → Save  
-2. Describe a meal in plain English → **Log It**  
+2. Describe a meal, a workout, or a whole day → **Log It**  
 3. Watch macros and energy balance update  
 
 Note: Logging needs network access to the provider you chose. If a browser blocks `file://` fetch, serve the folder locally (`python -m http.server` or `npx serve`).

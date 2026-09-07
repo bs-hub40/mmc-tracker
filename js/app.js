@@ -10,6 +10,14 @@
     dayEnergy,
     getTargets,
     sanitizeGoals,
+    sanitizeProfile,
+    sanitizeGoalWeight,
+    sanitizeHeightInches,
+    sanitizeBodyFat,
+    convertWeight,
+    calculateMacros,
+    ACTIVITY_LEVELS,
+    NUTRITION_STRATEGIES,
     getStreak,
     getBestStreak,
     trendSeries,
@@ -26,6 +34,7 @@
     logout,
     parseMealWithGrok,
     parseActivityWithGrok,
+    parseLogWithGrok,
     AI_PROVIDERS,
     getActiveApiKey,
     setActiveApiKey,
@@ -53,35 +62,21 @@
   } = window.MMC;
 
   const LOG_COPY = {
-    nutrition: {
-      label: "Log food",
-      placeholder:
-        'e.g. "Coffee with 1 tbsp maple syrup, 4 oz cooked skirt steak, 1 slice mozzarella"',
-    },
-    activity: {
-      label: "Log activity",
-      placeholder: 'e.g. "45 min brisk walk" or "Upper body lift, 50 min, moderate"',
-    },
+    label: "Log food or activity",
+    placeholder:
+      'One thing or a whole day — e.g. "Coffee and steak", "45 min walk", or "Breakfast eggs, lunch salad, 30 min walk, dinner salmon"',
   };
 
   function logButtonLabel() {
     return "Log It";
   }
 
-  const LOG_WAIT = {
-    nutrition: [
-      "Sending this to your AI…",
-      "Building the plate…",
-      "Finding the macros…",
-      "Jotting it in your log…",
-    ],
-    activity: [
-      "Sending this to your AI…",
-      "Mapping the workout…",
-      "Estimating the burn…",
-      "Jotting it in your log…",
-    ],
-  };
+  const LOG_WAIT = [
+    "Sending this to your AI…",
+    "Figuring out food vs movement…",
+    "Unpacking the day…",
+    "Jotting it in your log…",
+  ];
 
   let logWaitTimer = null;
   let logWaitIndex = 0;
@@ -95,8 +90,7 @@
   }
 
   function paintLogWaitCopy() {
-    const lines = LOG_WAIT[currentMode] || LOG_WAIT.nutrition;
-    const line = lines[logWaitIndex % lines.length];
+    const line = LOG_WAIT[logWaitIndex % LOG_WAIT.length];
     const text = els.logBtn?.querySelector(".btn-text");
     if (text) text.textContent = line;
   }
@@ -181,6 +175,15 @@
     weightBtn: document.getElementById("weight-btn"),
     weightHint: document.getElementById("weight-hint"),
     weightDateLabel: document.getElementById("weight-date-label"),
+    goalWeightInput: document.getElementById("goal-weight-input"),
+    goalWeightUnit: document.getElementById("goal-weight-unit"),
+    goalWeightBtn: document.getElementById("goal-weight-btn"),
+    goalWeightHint: document.getElementById("goal-weight-hint"),
+    goalWeightStatus: document.getElementById("goal-weight-status"),
+    profileAge: document.getElementById("profile-age"),
+    profileSexPicks: document.getElementById("profile-sex-picks"),
+    saveProfileBtn: document.getElementById("save-profile-btn"),
+    profileHint: document.getElementById("profile-hint"),
     weightChart: document.getElementById("weight-chart"),
     weightStatsEl: document.getElementById("weight-stats"),
     weightDelta: document.getElementById("weight-delta"),
@@ -196,6 +199,20 @@
     goalFiber: document.getElementById("goal-fiber"),
     saveGoalsBtn: document.getElementById("save-goals-btn"),
     goalsHint: document.getElementById("goals-hint"),
+    macroWeight: document.getElementById("macro-weight"),
+    macroWeightUnit: document.getElementById("macro-weight-unit"),
+    macroGoal: document.getElementById("macro-goal"),
+    macroGoalUnit: document.getElementById("macro-goal-unit"),
+    macroHeight: document.getElementById("macro-height"),
+    macroHeightUnit: document.getElementById("macro-height-unit"),
+    macroBf: document.getElementById("macro-bf"),
+    macroAge: document.getElementById("macro-age"),
+    macroSexPicks: document.getElementById("macro-sex-picks"),
+    macroActivityPicks: document.getElementById("macro-activity-picks"),
+    macroStrategyPicks: document.getElementById("macro-strategy-picks"),
+    macroHint: document.getElementById("macro-hint"),
+    macroResults: document.getElementById("macro-results"),
+    macroApplyBtn: document.getElementById("macro-apply-btn"),
     themeSwatches: document.getElementById("theme-swatches"),
     themeHint: document.getElementById("theme-hint"),
     apiKey: document.getElementById("api-key"),
@@ -236,6 +253,14 @@
     qaSlotName: document.getElementById("qa-slot-name"),
     qaSlotSave: document.getElementById("qa-slot-save"),
     qaSlotHint: document.getElementById("qa-slot-hint"),
+    profileOnboard: document.getElementById("profile-onboard"),
+    qaStepKicker: document.getElementById("qa-step-kicker"),
+    qaStepTitle: document.getElementById("qa-step-title"),
+    qaStepHelp: document.getElementById("qa-step-help"),
+    qaStepBody: document.getElementById("qa-step-body"),
+    qaStepHint: document.getElementById("qa-step-hint"),
+    qaSkipBtn: document.getElementById("qa-skip-btn"),
+    qaNextBtn: document.getElementById("qa-next-btn"),
   };
 
   let editTarget = null;
@@ -243,6 +268,10 @@
   let toastTimer = null;
   let logBusy = false;
   let onboardProvider = "xai";
+  let setupQueue = [];
+  let setupIndex = 0;
+  let qaSexPick = "";
+  let lastMacroResult = null;
 
   function targets() {
     return getTargets(state);
@@ -298,7 +327,49 @@
     }
   }
 
+  function buildPersonContext() {
+    if (!state) return "";
+    const lines = [
+      "Person context for THIS request only (do not recall a different profile):",
+    ];
+    const stats = weightStats(state);
+    const latest = stats.latest;
+    if (latest) {
+      lines.push(
+        `Current weight: ${round1(latest.weight)} ${latest.unit} (latest logged scale reading).`
+      );
+    }
+    const goal = sanitizeGoalWeight(state.goalWeight);
+    if (goal) {
+      lines.push(`Goal weight: ${round1(goal.weight)} ${goal.unit}.`);
+    }
+    const profile = sanitizeProfile(state.profile);
+    if (profile.age) lines.push(`Age: ${profile.age}.`);
+    if (profile.sex === "M") lines.push("Sex: male.");
+    if (profile.sex === "F") lines.push("Sex: female.");
+    if (profile.heightIn) {
+      const unit = profile.heightUnit === "cm" ? "cm" : "in";
+      const shown =
+        unit === "cm"
+          ? round1(profile.heightIn * 2.54)
+          : profile.heightIn;
+      lines.push(`Height: ${shown} ${unit}.`);
+    }
+    if (profile.bodyFat != null) lines.push(`Body fat: ${profile.bodyFat}%.`);
+    if (profile.activityPal) {
+      const level = ACTIVITY_LEVELS.find((a) => a.pal === profile.activityPal);
+      lines.push(`Activity level: ${level?.name || profile.activityPal} (PAL ${profile.activityPal}).`);
+    }
+    if (profile.strategy) {
+      const strat = NUTRITION_STRATEGIES.find((s) => s.id === profile.strategy);
+      lines.push(`Nutrition strategy: ${strat?.name || profile.strategy}.`);
+    }
+    if (lines.length === 1) return "";
+    return lines.join("\n");
+  }
+
   function setHint(el, message, ok = false) {
+    if (!el) return;
     if (!message) {
       el.hidden = true;
       el.textContent = "";
@@ -548,9 +619,11 @@
     setMode("nutrition");
     setView("today");
     renderAll();
+    if (session?.provider !== "google") maybeStartProfileSetup();
   }
 
   function handleSignOut() {
+    closeProfileSetup();
     googleSignOut();
     logout();
     session = null;
@@ -587,27 +660,20 @@
   }
 
   function syncLogPanel() {
-    if (currentMode !== "nutrition" && currentMode !== "activity") return;
-    const copy = LOG_COPY[currentMode];
-    els.logLabel.textContent = copy.label;
-    els.logInput.placeholder = copy.placeholder;
+    if (currentMode === "weight" || currentMode === "settings") return;
+    els.logLabel.textContent = LOG_COPY.label;
+    els.logInput.placeholder = LOG_COPY.placeholder;
     if (!logBusy) {
       const text = els.logBtn.querySelector(".btn-text");
       if (text) text.textContent = logButtonLabel();
     }
-    if (els.logJumpBtn) els.logJumpBtn.textContent = "＋ Log food";
     syncAiGate();
   }
 
   function updateLogVisibility() {
-    const showFullLog =
-      (currentMode === "nutrition" && currentView === "today") ||
-      currentMode === "activity";
-    const showJump =
-      currentMode === "nutrition" && currentView !== "today";
-
+    const showFullLog = currentMode === "nutrition" || currentMode === "activity";
     els.logPanel.hidden = !showFullLog;
-    if (els.logJumpBtn) els.logJumpBtn.hidden = !showJump;
+    if (els.logJumpBtn) els.logJumpBtn.hidden = true;
   }
 
   function setMode(mode) {
@@ -765,6 +831,8 @@
     renderQaEditor();
     renderDriveStatus();
     paintThemePicker(sanitizeTheme(state.theme));
+    paintProfileForm();
+    paintMacroForm();
   }
 
   function renderDriveStatus() {
@@ -809,12 +877,12 @@
 
   async function syncFromDrive() {
     if (session?.provider !== "google") return;
-    const restored = await googleRestoreToken();
-    if (!restored) {
-      renderDriveStatus();
-      return;
-    }
     try {
+      const restored = await googleRestoreToken();
+      if (!restored) {
+        renderDriveStatus();
+        return;
+      }
       const remote = await drivePull();
       if (!remote) {
         await drivePush(state);
@@ -838,6 +906,8 @@
     } catch (err) {
       setHint(els.driveSyncHint, err.message || "Drive sync failed.");
       renderDriveStatus();
+    } finally {
+      maybeStartProfileSetup();
     }
   }
 
@@ -896,10 +966,10 @@
     }
     if (qaEditType === "activity") {
       const kcal = round1(slot.parsed.totalCaloriesBurned);
-      return `Ready · ${kcal} kcal burned · tap on Exercise to log instantly`;
+      return `Ready · ${kcal} kcal burned · tap under the log box to log instantly`;
     }
     const kcal = round1(slot.parsed.totalCalories);
-    return `Ready · ${kcal} kcal · tap on Nutrition to log instantly`;
+    return `Ready · ${kcal} kcal · tap under the log box to log instantly`;
   }
 
   function renderQaEditor() {
@@ -1010,12 +1080,14 @@
               apiKey: getActiveApiKey(state),
               model: state.model,
               text: prompt,
+              context: buildPersonContext(),
             })
           : await parseMealWithGrok({
               provider: state.provider,
               apiKey: getActiveApiKey(state),
               model: state.model,
               text: prompt,
+              context: buildPersonContext(),
             });
       const label =
         slot.label ||
@@ -1036,9 +1108,7 @@
           : round1(parsed.totalCalories);
       setHint(
         els.qaHint,
-        `Saved. ${label} is ready (${kcal} kcal). It will log instantly from the ${
-          qaEditType === "activity" ? "Exercise" : "Nutrition"
-        } tab.`,
+        `Saved. ${label} is ready (${kcal} kcal). It will log instantly from the box at the top.`,
         true
       );
       showToast(`${label} ready — logs instantly`, true);
@@ -1069,8 +1139,9 @@
 
   function activeQuickActions() {
     const qa = sanitizeQuickActions(state?.quickActions);
-    const list = currentMode === "activity" ? qa.activity : qa.nutrition;
-    return list.filter((item) => item.label && (item.parsed || item.prompt));
+    return [...qa.nutrition, ...qa.activity].filter(
+      (item) => item.label && (item.parsed || item.prompt)
+    );
   }
 
   function renderQuickActions() {
@@ -1107,36 +1178,83 @@
       .join("");
   }
 
+  function isActivityPayload(parsed) {
+    if (!parsed || typeof parsed !== "object") return false;
+    if (parsed.totalCaloriesBurned != null) return true;
+    const first = parsed.items?.[0];
+    return Boolean(first && first.caloriesBurned != null && first.protein == null);
+  }
+
+  function commitMealLog(parsed, rawText) {
+    const { source, ...meal } = parsed;
+    today().meals.push({
+      id: uid(),
+      loggedAt: Date.now(),
+      rawText: source || rawText,
+      ...meal,
+    });
+  }
+
+  function commitActivityLog(parsed, rawText) {
+    const { source, ...activity } = parsed;
+    today().activities.push({
+      id: uid(),
+      loggedAt: Date.now(),
+      rawText: source || rawText,
+      text: source || rawText,
+      ...activity,
+    });
+  }
+
+  function revealLoggedKind(kind) {
+    if (kind === "activity") {
+      if (currentMode !== "activity") setMode("activity");
+      return;
+    }
+    if (currentView !== "today") setView("today");
+    if (currentMode !== "nutrition") setMode("nutrition");
+  }
+
+  function logMessage(result) {
+    const bits = [];
+    const meals = result.meals || [];
+    const acts = result.activities || [];
+    if (meals.length === 1) {
+      const n = meals[0].items.length;
+      bits.push(`${n} food item${n === 1 ? "" : "s"}`);
+    } else if (meals.length > 1) {
+      bits.push(`${meals.length} meals`);
+    }
+    if (acts.length === 1) {
+      const n = acts[0].items.length;
+      bits.push(
+        `${n} activit${n === 1 ? "y" : "ies"} · ${round1(acts[0].totalCaloriesBurned)} kcal burned`
+      );
+    } else if (acts.length > 1) {
+      const kcal = acts.reduce((sum, act) => sum + (Number(act.totalCaloriesBurned) || 0), 0);
+      bits.push(`${acts.length} activities · ${round1(kcal)} kcal burned`);
+    }
+    return bits.length ? `Logged ${bits.join(" and ")}` : "Logged";
+  }
+
   function logQuickAction(action) {
     state = ensureToday(state);
     if (action.parsed) {
       const parsed = clonePayload(action.parsed);
-      if (currentMode === "nutrition") {
-        today().meals.push({
-          id: uid(),
-          loggedAt: Date.now(),
-          rawText: action.prompt || action.label,
-          ...parsed,
-        });
+      const raw = action.prompt || action.label;
+      if (isActivityPayload(parsed)) {
+        commitActivityLog(parsed, raw);
         persist();
-        renderAll();
-        const msg = `Logged ${action.label}`;
-        setHint(els.logHint, msg, true);
-        showToast(msg, true);
+        revealLoggedKind("activity");
       } else {
-        today().activities.push({
-          id: uid(),
-          loggedAt: Date.now(),
-          rawText: action.prompt || action.label,
-          text: action.prompt || action.label,
-          ...parsed,
-        });
+        commitMealLog(parsed, raw);
         persist();
-        renderAll();
-        const msg = `Logged ${action.label}`;
-        setHint(els.logHint, msg, true);
-        showToast(msg, true);
+        revealLoggedKind("food");
       }
+      renderAll();
+      const msg = `Logged ${action.label}`;
+      setHint(els.logHint, msg, true);
+      showToast(msg, true);
       return;
     }
     handleLog(action.prompt);
@@ -1544,7 +1662,7 @@
     els.goalLegendMonth.textContent = `Goal day: net kcal ±10% of ${t.calories}, protein ≥${t.protein}g, carbs ≥${t.carbs}g, fiber >${t.fiber}g, fat ≤${t.fat}g`;
   }
 
-  function renderWeightChart(series) {
+  function renderWeightChart(series, goalValue) {
     if (!series.length) {
       els.weightChart.innerHTML = `<div class="weight-chart-empty">Log weights to see your trendline</div>`;
       return;
@@ -1557,6 +1675,9 @@
     const padT = 14;
     const padB = 28;
     const values = series.map((p) => p.weight);
+    if (goalValue != null && Number.isFinite(goalValue)) {
+      values.push(goalValue);
+    }
     let min = Math.min(...values);
     let max = Math.max(...values);
     if (min === max) {
@@ -1612,9 +1733,20 @@
       )
       .join("");
 
+    const goalY =
+      goalValue != null && Number.isFinite(goalValue)
+        ? padT + ((max - goalValue) / (max - min)) * innerH
+        : null;
+    const goalLine =
+      goalY == null
+        ? ""
+        : `<line x1="${padL}" y1="${goalY.toFixed(1)}" x2="${w - padR}" y2="${goalY.toFixed(1)}" stroke="var(--accent)" stroke-width="1.25" stroke-dasharray="4 3" opacity="0.85"></line>
+        <text x="${w - padR}" y="${(goalY - 4).toFixed(1)}" text-anchor="end" fill="var(--accent)" font-size="9" font-family="DM Sans, sans-serif">goal</text>`;
+
     els.weightChart.innerHTML = `
       <svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Weight trendline">
         ${yTicks.join("")}
+        ${goalLine}
         <path d="${area}" fill="color-mix(in srgb, var(--accent) 12%, transparent)"></path>
         <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"></path>
         ${dots}
@@ -1628,6 +1760,10 @@
     const unit = stats.latest?.unit || state.weightUnit || "lb";
     els.weightDateLabel.textContent = formatWeightDate(todayKey());
 
+    const goal = sanitizeGoalWeight(state.goalWeight);
+    const goalDisplay =
+      goal && unit ? convertWeight(goal.weight, goal.unit, unit) : null;
+
     if (stats.delta == null) {
       els.weightDelta.textContent = "—";
     } else {
@@ -1637,14 +1773,39 @@
         stats.delta < 0 ? "var(--green)" : stats.delta > 0 ? "var(--amber)" : "";
     }
 
-    renderWeightChart(stats.series);
+    renderWeightChart(stats.series, goalDisplay);
+
+    const latestDisplay = stats.latest
+      ? convertWeight(stats.latest.weight, stats.latest.unit, unit)
+      : null;
+    let toGoLabel = "—";
+    if (latestDisplay != null && goalDisplay != null) {
+      const diff = round1(latestDisplay - goalDisplay);
+      if (diff === 0) toGoLabel = "At goal";
+      else if (diff > 0) toGoLabel = `${diff} ${unit} to go`;
+      else toGoLabel = `${Math.abs(diff)} ${unit} to gain`;
+    }
 
     els.weightStatsEl.innerHTML = `
       <div class="stat"><span>Latest</span><strong>${stats.latest ? `${round1(stats.latest.weight)} ${unit}` : "—"}</strong></div>
-      <div class="stat"><span>Average</span><strong>${stats.avg != null ? `${stats.avg} ${unit}` : "—"}</strong></div>
-      <div class="stat"><span>Entries</span><strong>${stats.series.length}</strong></div>
+      <div class="stat"><span>Goal</span><strong>${goalDisplay != null ? `${goalDisplay} ${unit}` : "—"}</strong></div>
+      <div class="stat"><span>To go</span><strong>${toGoLabel}</strong></div>
       <div class="stat"><span>Change</span><strong>${stats.delta == null ? "—" : `${stats.delta > 0 ? "+" : ""}${stats.delta} ${unit}`}</strong></div>
     `;
+
+    if (els.goalWeightStatus) {
+      els.goalWeightStatus.textContent = goal
+        ? toGoLabel === "—"
+          ? `Goal ${round1(goal.weight)} ${goal.unit}. Log a current weight to see the gap.`
+          : `Goal ${round1(goal.weight)} ${goal.unit} · ${toGoLabel}.`
+        : "Optional. Shows on the trendline and is sent with AI logs.";
+    }
+    if (els.goalWeightInput && document.activeElement !== els.goalWeightInput) {
+      els.goalWeightInput.value = goal ? String(goal.weight) : "";
+    }
+    if (els.goalWeightUnit) {
+      els.goalWeightUnit.value = goal?.unit || unit;
+    }
 
     const reversed = [...stats.series].reverse();
     els.weightEmpty.hidden = reversed.length > 0;
@@ -1696,12 +1857,7 @@
     const fromQuick = typeof presetText === "string";
     const text = (fromQuick ? presetText : els.logInput.value).trim();
     if (!text) {
-      setHint(
-        els.logHint,
-        currentMode === "nutrition"
-          ? "Enter a meal description first."
-          : "Describe the activity you completed."
-      );
+      setHint(els.logHint, "Describe a meal, a workout, or a whole day.");
       return;
     }
 
@@ -1709,46 +1865,22 @@
     setBusy(true);
 
     try {
-      if (currentMode === "nutrition") {
-        const parsed = await parseMealWithGrok({
-          provider: state.provider,
-          apiKey: getActiveApiKey(state),
-          model: state.model,
-          text,
-        });
-        today().meals.push({
-          id: uid(),
-          loggedAt: Date.now(),
-          rawText: text,
-          ...parsed,
-        });
-        persist();
-        if (!fromQuick) els.logInput.value = "";
-        renderAll();
-        const msg = `Logged ${parsed.items.length} food item${parsed.items.length === 1 ? "" : "s"}`;
-        setHint(els.logHint, msg, true);
-        showToast(msg, true);
-      } else {
-        const parsed = await parseActivityWithGrok({
-          provider: state.provider,
-          apiKey: getActiveApiKey(state),
-          model: state.model,
-          text,
-        });
-        today().activities.push({
-          id: uid(),
-          loggedAt: Date.now(),
-          rawText: text,
-          text,
-          ...parsed,
-        });
-        persist();
-        if (!fromQuick) els.logInput.value = "";
-        renderAll();
-        const msg = `Logged ${parsed.items.length} activit${parsed.items.length === 1 ? "y" : "ies"} · ${round1(parsed.totalCaloriesBurned)} kcal burned`;
-        setHint(els.logHint, msg, true);
-        showToast(msg, true);
-      }
+      const result = await parseLogWithGrok({
+        provider: state.provider,
+        apiKey: getActiveApiKey(state),
+        model: state.model,
+        text,
+        context: buildPersonContext(),
+      });
+      (result.meals || []).forEach((meal) => commitMealLog(meal, text));
+      (result.activities || []).forEach((act) => commitActivityLog(act, text));
+      persist();
+      if (!fromQuick) els.logInput.value = "";
+      revealLoggedKind(result.kind);
+      renderAll();
+      const msg = logMessage(result);
+      setHint(els.logHint, msg, true);
+      showToast(msg, true);
     } catch (err) {
       const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
       const msg = err.message || `Failed to parse with ${providerLabel}.`;
@@ -2045,6 +2177,7 @@
           apiKey: getActiveApiKey(state),
           model: state.model,
           text: raw,
+          context: buildPersonContext(),
         });
         const meal = today().meals.find((m) => m.id === editTarget.id);
         if (!meal) return;
@@ -2059,6 +2192,7 @@
           apiKey: getActiveApiKey(state),
           model: state.model,
           text: raw,
+          context: buildPersonContext(),
         });
         const act = today().activities.find((a) => a.id === editTarget.id);
         if (!act) return;
@@ -2099,6 +2233,485 @@
     renderAll();
     fillSettingsForm();
     setHint(els.goalsHint, "Goals updated. Progress and trends now use these targets.", true);
+  }
+
+  function selectedMacroSex() {
+    const active = els.macroSexPicks?.querySelector(".sex-pick.active");
+    return active?.getAttribute("data-macro-sex") || "";
+  }
+
+  function paintChoiceGroup(root, attr, value) {
+    if (!root) return;
+    root.querySelectorAll(`[${attr}]`).forEach((btn) => {
+      const on = btn.getAttribute(attr) === String(value);
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+  }
+
+  function ensureMacroChoices() {
+    const levels = ACTIVITY_LEVELS || window.MMC.ACTIVITY_LEVELS || [];
+    const strategies = NUTRITION_STRATEGIES || window.MMC.NUTRITION_STRATEGIES || [];
+    if (els.macroActivityPicks && !els.macroActivityPicks.childElementCount) {
+      els.macroActivityPicks.innerHTML = levels.map(
+        (level) => `
+          <button type="button" class="choice-pick" data-macro-pal="${level.pal}" role="radio" aria-checked="false">
+            <span class="choice-name">${level.name}</span>
+            <span class="choice-hint">${level.hint}</span>
+          </button>
+        `
+      ).join("");
+    }
+    if (els.macroStrategyPicks && !els.macroStrategyPicks.childElementCount) {
+      els.macroStrategyPicks.innerHTML = strategies.map(
+        (strat) => `
+          <button type="button" class="choice-pick" data-macro-strategy="${strat.id}" role="radio" aria-checked="false">
+            <span class="choice-name">${strat.name}</span>
+            <span class="choice-hint">${strat.short}</span>
+          </button>
+        `
+      ).join("");
+    }
+  }
+
+  function paintMacroForm() {
+    if (!els.macroWeight) return;
+    ensureMacroChoices();
+    const profile = sanitizeProfile(state?.profile);
+    const unit = state?.weightUnit === "kg" ? "kg" : "lb";
+    if (els.macroWeightUnit) els.macroWeightUnit.value = unit;
+    if (els.macroGoalUnit) els.macroGoalUnit.value = unit;
+    const latest = weightStats(state).latest;
+    if (els.macroWeight) {
+      if (latest) {
+        const w = convertWeight(latest.weight, latest.unit, unit);
+        els.macroWeight.value = w ?? "";
+      } else {
+        els.macroWeight.value = "";
+      }
+    }
+    const goal = sanitizeGoalWeight(state?.goalWeight);
+    if (els.macroGoal) {
+      if (goal) {
+        const g = convertWeight(goal.weight, goal.unit, unit);
+        els.macroGoal.value = g ?? "";
+      } else {
+        els.macroGoal.value = "";
+      }
+    }
+    const heightUnit = profile.heightUnit === "cm" ? "cm" : "in";
+    if (els.macroHeightUnit) els.macroHeightUnit.value = heightUnit;
+    if (els.macroHeight) {
+      if (profile.heightIn) {
+        els.macroHeight.value =
+          heightUnit === "cm" ? round1(profile.heightIn * 2.54) : profile.heightIn;
+      } else {
+        els.macroHeight.value = "";
+      }
+    }
+    if (els.macroBf) els.macroBf.value = profile.bodyFat != null ? profile.bodyFat : "";
+    if (els.macroAge) els.macroAge.value = profile.age || els.profileAge?.value || "";
+    paintChoiceGroup(els.macroSexPicks, "data-macro-sex", profile.sex || selectedProfileSex());
+    paintChoiceGroup(els.macroActivityPicks, "data-macro-pal", profile.activityPal || "");
+    paintChoiceGroup(els.macroStrategyPicks, "data-macro-strategy", profile.strategy || "");
+    refreshMacroCalc();
+  }
+
+  function readMacroInput() {
+    const weightUnit = els.macroWeightUnit?.value === "kg" ? "kg" : "lb";
+    const goalUnit = els.macroGoalUnit?.value === "kg" ? "kg" : "lb";
+    const heightUnit = els.macroHeightUnit?.value === "cm" ? "cm" : "in";
+    const current = convertWeight(els.macroWeight?.value, weightUnit, "lb");
+    const goal = convertWeight(els.macroGoal?.value, goalUnit, "lb");
+    const heightIn = sanitizeHeightInches(els.macroHeight?.value, heightUnit);
+    const palBtn = els.macroActivityPicks?.querySelector(".choice-pick.active");
+    const stratBtn = els.macroStrategyPicks?.querySelector(".choice-pick.active");
+    return {
+      currentLb: current,
+      goalLb: goal,
+      heightIn,
+      sex: selectedMacroSex(),
+      bodyFat: els.macroBf?.value,
+      age: els.macroAge?.value,
+      pal: palBtn?.getAttribute("data-macro-pal"),
+      strategy: stratBtn?.getAttribute("data-macro-strategy"),
+    };
+  }
+
+  function refreshMacroCalc() {
+    if (!els.macroResults) return;
+    const result = calculateMacros(readMacroInput());
+    if (!result.ok) {
+      els.macroResults.hidden = true;
+      els.macroResults.innerHTML = "";
+      if (els.macroApplyBtn) els.macroApplyBtn.disabled = true;
+      lastMacroResult = null;
+      const started =
+        els.macroWeight?.value ||
+        els.macroGoal?.value ||
+        els.macroHeight?.value ||
+        els.macroBf?.value ||
+        selectedMacroSex() ||
+        els.macroActivityPicks?.querySelector(".choice-pick.active") ||
+        els.macroStrategyPicks?.querySelector(".choice-pick.active");
+      if (els.macroHint) setHint(els.macroHint, started ? result.error : "");
+      return;
+    }
+    lastMacroResult = result;
+    if (els.macroHint) setHint(els.macroHint, "");
+    const typeLabel =
+      result.goalType === "cut" ? "Cut" : result.goalType === "bulk" ? "Bulk" : "Maintain";
+    const cur = result.current;
+    const maint = result.maintenance;
+    els.macroResults.hidden = false;
+    els.macroResults.innerHTML = `
+      <p class="macro-results-kicker">${typeLabel} · ${result.strategyName}</p>
+      <h3>${cur.calories} kcal / day</h3>
+      <div class="macro-macro-row">
+        <div class="macro-macro"><span>Protein</span><strong>${cur.protein} g</strong></div>
+        <div class="macro-macro"><span>Carbs</span><strong>${cur.carbs} g</strong></div>
+        <div class="macro-macro"><span>Fat</span><strong>${cur.fat} g</strong></div>
+      </div>
+      <div class="macro-stat-grid">
+        <div class="macro-stat"><span>BMR</span><strong>${Math.round(result.bmr)} kcal</strong></div>
+        <div class="macro-stat"><span>TDEE</span><strong>${Math.round(result.tdee)} kcal</strong></div>
+        <div class="macro-stat"><span>Lean mass</span><strong>${Math.round(result.lbm)} lb</strong></div>
+        <div class="macro-stat"><span>Activity burn</span><strong>${Math.round(result.activityCals)} kcal</strong></div>
+      </div>
+      <p class="field-help">${result.strategyBlurb}</p>
+      <p class="field-help">
+        At goal weight, maintenance is about <strong>${maint.calories} kcal</strong>
+        (${maint.protein} g protein, ${maint.carbs} g carbs, ${maint.fat} g fat).
+      </p>
+      <p class="field-help">
+        Calories are a starting point. A window of about ±200 kcal is normal while you see how you respond.
+      </p>
+    `;
+    if (els.macroApplyBtn) els.macroApplyBtn.disabled = false;
+  }
+
+  function applyMacroGoals() {
+    const result = lastMacroResult || calculateMacros(readMacroInput());
+    if (!result.ok) {
+      setHint(els.macroHint, result.error);
+      return;
+    }
+    const input = readMacroInput();
+    const heightUnit = els.macroHeightUnit?.value === "cm" ? "cm" : "in";
+    const weightUnit = els.macroWeightUnit?.value === "kg" ? "kg" : "lb";
+    const goalUnit = els.macroGoalUnit?.value === "kg" ? "kg" : "lb";
+    state.profile = sanitizeProfile({
+      ...state.profile,
+      age: input.age,
+      sex: input.sex,
+      heightIn: input.heightIn,
+      heightUnit,
+      bodyFat: input.bodyFat,
+      activityPal: input.pal,
+      strategy: input.strategy,
+    });
+    state.goalWeight = sanitizeGoalWeight({
+      weight: els.macroGoal.value,
+      unit: goalUnit,
+    });
+    try {
+      upsertWeight(state, {
+        weight: els.macroWeight.value,
+        unit: weightUnit,
+        date: todayKey(),
+      });
+    } catch {
+      /* keep existing log if the field is somehow invalid after a successful calc */
+    }
+    const fiber = targets().fiber;
+    state.goals = sanitizeGoals({
+      calories: result.current.calories,
+      protein: result.current.protein,
+      fat: result.current.fat,
+      carbs: result.current.carbs,
+      fiber,
+    });
+    persist();
+    renderAll();
+    fillSettingsForm();
+    setHint(
+      els.macroHint,
+      `Daily goals set to ${result.current.calories} kcal · ${result.current.protein} P / ${result.current.carbs} C / ${result.current.fat} F.`,
+      true
+    );
+    showToast("Daily goals updated", true);
+  }
+
+  function selectedProfileSex() {
+    const active = els.profileSexPicks?.querySelector(".sex-pick.active");
+    return active?.getAttribute("data-profile-sex") || "";
+  }
+
+  function paintProfileForm() {
+    const profile = sanitizeProfile(state?.profile);
+    if (els.profileAge) els.profileAge.value = profile.age || "";
+    els.profileSexPicks?.querySelectorAll("[data-profile-sex]").forEach((btn) => {
+      const on = btn.getAttribute("data-profile-sex") === profile.sex;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    setHint(els.profileHint, "");
+  }
+
+  function saveProfile() {
+    const ageRaw = els.profileAge?.value;
+    if (ageRaw && ageRaw.trim() && sanitizeProfile({ age: ageRaw }).age == null) {
+      setHint(els.profileHint, "Enter an age between 1 and 120.");
+      return;
+    }
+    state.profile = sanitizeProfile({
+      ...state.profile,
+      age: ageRaw,
+      sex: selectedProfileSex(),
+    });
+    persist();
+    paintProfileForm();
+    paintMacroForm();
+    setHint(els.profileHint, "Profile saved. The AI will use this on the next log.", true);
+  }
+
+  function hasLoggedWeight() {
+    return Array.isArray(state?.weights) && state.weights.length > 0;
+  }
+
+  function remainingSetupSteps() {
+    const profile = sanitizeProfile(state?.profile);
+    if (profile.setupDone) return [];
+    const steps = [];
+    if (!profile.age) steps.push("age");
+    if (!profile.sex) steps.push("sex");
+    if (!hasLoggedWeight()) steps.push("weight");
+    if (!sanitizeGoalWeight(state?.goalWeight)) steps.push("goal");
+    return steps;
+  }
+
+  function closeProfileSetup() {
+    setupQueue = [];
+    setupIndex = 0;
+    qaSexPick = "";
+    if (els.qaStepBody) els.qaStepBody.innerHTML = "";
+    if (els.qaStepHint) setHint(els.qaStepHint, "");
+    if (els.profileOnboard) els.profileOnboard.hidden = true;
+  }
+
+  function setupWeightUnit() {
+    return state?.weightUnit === "kg" ? "kg" : "lb";
+  }
+
+  function renderSetupStep() {
+    const step = setupQueue[setupIndex];
+    if (!step || !els.qaStepBody) return;
+    const total = setupQueue.length;
+    const n = setupIndex + 1;
+    els.qaStepKicker.textContent = `${n} of ${total}`;
+    if (els.qaStepHint) setHint(els.qaStepHint, "");
+    const unit = setupWeightUnit();
+    const skip = Boolean(els.qaSkipBtn);
+    if (skip) {
+      els.qaSkipBtn.hidden = step !== "goal";
+    }
+    if (els.qaNextBtn) {
+      els.qaNextBtn.textContent = step === "goal" ? "Save goal" : "Continue";
+    }
+
+    if (step === "age") {
+      els.qaStepTitle.textContent = "How old are you?";
+      els.qaStepHelp.textContent =
+        "A few quick details so calorie estimates fit you. Current age only — not a birth date.";
+      els.qaStepBody.innerHTML = `
+        <input type="number" id="qa-age" class="field-input" min="1" max="120" step="1" inputmode="numeric" placeholder="e.g. 42" aria-label="Age" />
+      `;
+    } else if (step === "sex") {
+      qaSexPick = sanitizeProfile(state.profile).sex;
+      els.qaStepTitle.textContent = "Male or female?";
+      els.qaStepHelp.textContent = "Helps size calorie burn from activity.";
+      els.qaStepBody.innerHTML = `
+        <div class="sex-picks" role="radiogroup" aria-label="Sex">
+          <button type="button" class="sex-pick${qaSexPick === "M" ? " active" : ""}" data-qa-sex="M" role="radio" aria-checked="${qaSexPick === "M" ? "true" : "false"}">M</button>
+          <button type="button" class="sex-pick${qaSexPick === "F" ? " active" : ""}" data-qa-sex="F" role="radio" aria-checked="${qaSexPick === "F" ? "true" : "false"}">F</button>
+        </div>
+      `;
+    } else if (step === "weight") {
+      els.qaStepTitle.textContent = "What's your weight today?";
+      els.qaStepHelp.textContent = "Starting point for burn estimates and your trend chart.";
+      els.qaStepBody.innerHTML = `
+        <div class="weight-row">
+          <input type="number" id="qa-weight" class="field-input weight-input" inputmode="decimal" step="0.1" min="1" placeholder="${unit === "kg" ? "e.g. 81.2" : "e.g. 178.4"}" />
+          <select id="qa-weight-unit" class="field-input weight-unit" aria-label="Weight unit">
+            <option value="lb"${unit === "lb" ? " selected" : ""}>lb</option>
+            <option value="kg"${unit === "kg" ? " selected" : ""}>kg</option>
+          </select>
+        </div>
+      `;
+    } else if (step === "goal") {
+      els.qaStepTitle.textContent = "Want a goal weight?";
+      els.qaStepHelp.textContent =
+        "Optional. It shows as a dashed line on the trend. You can change this later on the Weight tab.";
+      els.qaStepBody.innerHTML = `
+        <div class="weight-row">
+          <input type="number" id="qa-goal" class="field-input weight-input" inputmode="decimal" step="0.1" min="1" placeholder="${unit === "kg" ? "e.g. 75" : "e.g. 165"}" />
+          <select id="qa-goal-unit" class="field-input weight-unit" aria-label="Goal weight unit">
+            <option value="lb"${unit === "lb" ? " selected" : ""}>lb</option>
+            <option value="kg"${unit === "kg" ? " selected" : ""}>kg</option>
+          </select>
+        </div>
+      `;
+    }
+
+    const focusEl = els.qaStepBody.querySelector("input");
+    if (focusEl) {
+      setTimeout(() => focusEl.focus(), 50);
+    }
+  }
+
+  function finishProfileSetup() {
+    state.profile = sanitizeProfile({ ...state.profile, setupDone: true });
+    persist();
+    paintProfileForm();
+    renderAll();
+    closeProfileSetup();
+    showToast("You're set.", true);
+  }
+
+  function advanceSetup() {
+    setupIndex += 1;
+    if (setupIndex >= setupQueue.length) {
+      finishProfileSetup();
+      return;
+    }
+    renderSetupStep();
+  }
+
+  function submitSetupStep() {
+    const step = setupQueue[setupIndex];
+    if (!step) return;
+    if (els.qaStepHint) setHint(els.qaStepHint, "");
+
+    if (step === "age") {
+      const age = sanitizeProfile({ age: document.getElementById("qa-age")?.value }).age;
+      if (!age) {
+        setHint(els.qaStepHint, "Enter an age between 1 and 120.");
+        return;
+      }
+      state.profile = sanitizeProfile({ ...state.profile, age });
+      persist();
+      paintProfileForm();
+      advanceSetup();
+      return;
+    }
+
+    if (step === "sex") {
+      const sex = sanitizeProfile({ sex: qaSexPick }).sex;
+      if (!sex) {
+        setHint(els.qaStepHint, "Pick M or F.");
+        return;
+      }
+      state.profile = sanitizeProfile({ ...state.profile, sex });
+      persist();
+      paintProfileForm();
+      advanceSetup();
+      return;
+    }
+
+    if (step === "weight") {
+      const raw = document.getElementById("qa-weight")?.value.trim();
+      const unit = document.getElementById("qa-weight-unit")?.value || setupWeightUnit();
+      if (!raw) {
+        setHint(els.qaStepHint, "Enter your current weight.");
+        return;
+      }
+      try {
+        upsertWeight(state, { weight: raw, unit, date: todayKey() });
+        persist();
+        renderAll();
+        advanceSetup();
+      } catch (err) {
+        setHint(els.qaStepHint, err.message || "Enter a valid weight.");
+      }
+      return;
+    }
+
+    if (step === "goal") {
+      const raw = document.getElementById("qa-goal")?.value.trim();
+      if (!raw) {
+        setHint(els.qaStepHint, "Enter a goal, or skip for now.");
+        return;
+      }
+      const next = sanitizeGoalWeight({
+        weight: raw,
+        unit: document.getElementById("qa-goal-unit")?.value || setupWeightUnit(),
+      });
+      if (!next) {
+        setHint(els.qaStepHint, "Enter a valid goal weight.");
+        return;
+      }
+      state.goalWeight = next;
+      persist();
+      renderAll();
+      finishProfileSetup();
+    }
+  }
+
+  function skipSetupStep() {
+    if (setupQueue[setupIndex] !== "goal") return;
+    finishProfileSetup();
+  }
+
+  function maybeStartProfileSetup() {
+    if (!state || !session) return;
+    if (els.appShell?.hidden) return;
+    const remaining = remainingSetupSteps();
+    if (!remaining.length) {
+      const profile = sanitizeProfile(state.profile);
+      if (!profile.setupDone) {
+        state.profile = sanitizeProfile({ ...profile, setupDone: true });
+        persist();
+      }
+      closeProfileSetup();
+      return;
+    }
+    const showing = els.profileOnboard && !els.profileOnboard.hidden;
+    if (showing) {
+      const leftover = setupQueue.slice(setupIndex);
+      if (leftover.join() === remaining.join()) return;
+      setupQueue = remaining;
+      setupIndex = 0;
+      renderSetupStep();
+      return;
+    }
+    setupQueue = remaining;
+    setupIndex = 0;
+    renderSetupStep();
+    els.profileOnboard.hidden = false;
+  }
+
+  function handleGoalWeightSave() {
+    const raw = els.goalWeightInput?.value.trim();
+    if (!raw) {
+      state.goalWeight = null;
+      persist();
+      renderWeight();
+      setHint(els.goalWeightHint, "Goal weight cleared.", true);
+      return;
+    }
+    const next = sanitizeGoalWeight({
+      weight: raw,
+      unit: els.goalWeightUnit?.value || state.weightUnit || "lb",
+    });
+    if (!next) {
+      setHint(els.goalWeightHint, "Enter a valid goal weight.");
+      return;
+    }
+    state.goalWeight = next;
+    persist();
+    renderWeight();
+    setHint(els.goalWeightHint, `Goal set to ${next.weight} ${next.unit}.`, true);
+    showToast(`Goal ${next.weight} ${next.unit}`, true);
   }
 
   function saveApi() {
@@ -2276,6 +2889,13 @@
         handleWeightLog();
       }
     });
+    els.goalWeightBtn?.addEventListener("click", handleGoalWeightSave);
+    els.goalWeightInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleGoalWeightSave();
+      }
+    });
     els.weightList.addEventListener("click", (e) => {
       const editBtn = e.target.closest("[data-edit-weight]");
       if (editBtn) {
@@ -2291,6 +2911,78 @@
     els.logoutBtn.addEventListener("click", handleSignOut);
     els.settingsLogoutBtn.addEventListener("click", handleSignOut);
     els.saveGoalsBtn.addEventListener("click", saveGoals);
+    els.macroApplyBtn?.addEventListener("click", applyMacroGoals);
+    ["macroWeight", "macroGoal", "macroHeight", "macroBf", "macroAge"].forEach((key) => {
+      els[key]?.addEventListener("input", refreshMacroCalc);
+    });
+    const convertPair = (inputEl, unitEl, kind) => {
+      let prev = unitEl?.value;
+      unitEl?.addEventListener("change", () => {
+        const next = unitEl.value;
+        const raw = Number(inputEl?.value);
+        if (Number.isFinite(raw) && raw > 0 && prev && prev !== next) {
+          if (kind === "height") {
+            const inches = prev === "cm" ? raw / 2.54 : raw;
+            inputEl.value = next === "cm" ? round1(inches * 2.54) : round1(inches);
+          } else {
+            const converted = convertWeight(raw, prev, next);
+            if (converted != null) inputEl.value = converted;
+          }
+        }
+        prev = next;
+        refreshMacroCalc();
+      });
+    };
+    convertPair(els.macroWeight, els.macroWeightUnit, "weight");
+    convertPair(els.macroGoal, els.macroGoalUnit, "weight");
+    convertPair(els.macroHeight, els.macroHeightUnit, "height");
+    els.macroSexPicks?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-macro-sex]");
+      if (!btn) return;
+      paintChoiceGroup(els.macroSexPicks, "data-macro-sex", btn.getAttribute("data-macro-sex"));
+      refreshMacroCalc();
+    });
+    els.macroActivityPicks?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-macro-pal]");
+      if (!btn) return;
+      paintChoiceGroup(els.macroActivityPicks, "data-macro-pal", btn.getAttribute("data-macro-pal"));
+      refreshMacroCalc();
+    });
+    els.macroStrategyPicks?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-macro-strategy]");
+      if (!btn) return;
+      paintChoiceGroup(els.macroStrategyPicks, "data-macro-strategy", btn.getAttribute("data-macro-strategy"));
+      refreshMacroCalc();
+    });
+    els.saveProfileBtn?.addEventListener("click", saveProfile);
+    els.profileSexPicks?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-profile-sex]");
+      if (!btn) return;
+      const already = btn.classList.contains("active");
+      els.profileSexPicks.querySelectorAll("[data-profile-sex]").forEach((el) => {
+        const on = !already && el === btn;
+        el.classList.toggle("active", on);
+        el.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    });
+    els.qaNextBtn?.addEventListener("click", submitSetupStep);
+    els.qaSkipBtn?.addEventListener("click", skipSetupStep);
+    els.qaStepBody?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-qa-sex]");
+      if (!btn || !els.qaStepBody.contains(btn)) return;
+      qaSexPick = btn.getAttribute("data-qa-sex") || "";
+      els.qaStepBody.querySelectorAll("[data-qa-sex]").forEach((el) => {
+        const on = el === btn;
+        el.classList.toggle("active", on);
+        el.setAttribute("aria-checked", on ? "true" : "false");
+      });
+    });
+    els.qaStepBody?.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      if (e.target.closest("textarea")) return;
+      e.preventDefault();
+      submitSetupStep();
+    });
     els.saveApiBtn.addEventListener("click", saveApi);
     els.settingsProviders?.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-ai-provider]");
@@ -2341,6 +3033,7 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (els.profileOnboard && !els.profileOnboard.hidden) return;
       if (els.qaSlotModal && !els.qaSlotModal.hidden) {
         closeQaSlotModal();
         return;

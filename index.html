@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#0c0e12" />
     <meta name="color-scheme" content="dark" />
     <title>Log it</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-theme" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-theme" />
-    <link rel="shortcut icon" href="favicon.png?v=20260907-theme" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-theme" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-calc3" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-calc3" />
+    <link rel="shortcut icon" href="favicon.png?v=20260907-calc3" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-calc3" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,13 +17,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-theme" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-calc3" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="brand auth-brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-theme" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-calc3" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline">AI powered Food, Activity, and Weight Tracker</p>
@@ -86,7 +86,7 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-theme" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-calc3" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline" id="user-tagline">Food · activity · weight</p>
@@ -173,9 +173,9 @@
         </div>
 
         <div id="log-compose">
-          <label class="log-label" id="log-label" for="log-input">Log food</label>
+          <label class="log-label" id="log-label" for="log-input">Log food or activity</label>
           <div class="log-input-wrap">
-            <textarea id="log-input" rows="3" placeholder=""></textarea>
+            <textarea id="log-input" rows="4" placeholder='One thing or a whole day — e.g. "Coffee and steak", "45 min walk", or "Breakfast eggs, lunch salad, 30 min walk, dinner salmon"'></textarea>
             <button type="button" class="mic-btn" id="mic-btn" aria-label="Speak to fill" aria-pressed="false" title="Speak">
               <svg class="mic-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
                 <rect x="9" y="3" width="6" height="11" rx="3" />
@@ -289,6 +289,29 @@
           <p class="log-hint" id="weight-hint" hidden></p>
         </section>
 
+        <section class="log-panel" id="goal-weight-panel">
+          <label class="log-label" for="goal-weight-input">Goal weight</label>
+          <div class="weight-row">
+            <input
+              type="number"
+              id="goal-weight-input"
+              class="field-input weight-input"
+              inputmode="decimal"
+              step="0.1"
+              min="50"
+              max="500"
+              placeholder="e.g. 165"
+            />
+            <select id="goal-weight-unit" class="field-input weight-unit" aria-label="Goal weight unit">
+              <option value="lb">lb</option>
+              <option value="kg">kg</option>
+            </select>
+            <button type="button" class="btn btn-primary weight-log-btn" id="goal-weight-btn">Save</button>
+          </div>
+          <p class="field-help weight-date-hint" id="goal-weight-status">Optional. Shows on the trendline.</p>
+          <p class="log-hint" id="goal-weight-hint" hidden></p>
+        </section>
+
         <section class="trend-panel">
           <div class="meals-header">
             <h2>Weight trend</h2>
@@ -358,8 +381,69 @@
         </nav>
 
         <section class="settings-panel" data-settings-panel="goals">
+          <div class="macro-calc" id="macro-calc">
+            <h2 class="settings-title">Macro calculator</h2>
+            <p class="field-help">
+              Uses your weight, goal, height, and activity to set calorie, protein, fat, and carb targets. Fiber stays whatever you save below.
+            </p>
+            <div class="goals-grid">
+              <label class="goal-field">
+                <span>Current weight</span>
+                <div class="weight-row">
+                  <input type="number" id="macro-weight" class="field-input weight-input" inputmode="decimal" step="0.1" min="1" placeholder="e.g. 178.4" />
+                  <select id="macro-weight-unit" class="field-input weight-unit" aria-label="Weight unit">
+                    <option value="lb">lb</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </div>
+              </label>
+              <label class="goal-field">
+                <span>Goal weight</span>
+                <div class="weight-row">
+                  <input type="number" id="macro-goal" class="field-input weight-input" inputmode="decimal" step="0.1" min="1" placeholder="e.g. 165" />
+                  <select id="macro-goal-unit" class="field-input weight-unit" aria-label="Goal weight unit">
+                    <option value="lb">lb</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </div>
+              </label>
+              <label class="goal-field">
+                <span>Height</span>
+                <div class="weight-row">
+                  <input type="number" id="macro-height" class="field-input weight-input" inputmode="decimal" step="0.1" min="1" placeholder="e.g. 70" />
+                  <select id="macro-height-unit" class="field-input weight-unit" aria-label="Height unit">
+                    <option value="in">in</option>
+                    <option value="cm">cm</option>
+                  </select>
+                </div>
+              </label>
+              <label class="goal-field">
+                <span>Body fat %</span>
+                <input type="number" id="macro-bf" class="field-input" inputmode="decimal" step="0.1" min="0" max="75" placeholder="e.g. 18" />
+              </label>
+              <label class="goal-field">
+                <span>Age</span>
+                <input type="number" id="macro-age" class="field-input" min="1" max="120" step="1" placeholder="e.g. 42" />
+              </label>
+              <div class="goal-field">
+                <span>Sex</span>
+                <div class="sex-picks" id="macro-sex-picks" role="radiogroup" aria-label="Sex">
+                  <button type="button" class="sex-pick" data-macro-sex="M" role="radio" aria-checked="false">M</button>
+                  <button type="button" class="sex-pick" data-macro-sex="F" role="radio" aria-checked="false">F</button>
+                </div>
+              </div>
+            </div>
+            <p class="field-label">Activity level</p>
+            <div class="choice-stack" id="macro-activity-picks" role="radiogroup" aria-label="Activity level"></div>
+            <p class="field-label">Nutrition strategy</p>
+            <div class="choice-stack" id="macro-strategy-picks" role="radiogroup" aria-label="Nutrition strategy"></div>
+            <p class="log-hint" id="macro-hint" hidden></p>
+            <div id="macro-results" class="macro-results" hidden></div>
+            <button type="button" class="btn btn-primary" id="macro-apply-btn" disabled>Use as daily goals</button>
+          </div>
+
           <h2 class="settings-title">Daily goals</h2>
-          <p class="field-help">These drive progress bars, remaining calories, and trends.</p>
+          <p class="field-help">Fiber stays yours when you apply the calculator. These numbers drive progress bars, remaining calories, and trends.</p>
           <div class="goals-grid">
             <label class="goal-field">
               <span>Calories (kcal)</span>
@@ -389,7 +473,7 @@
         <section class="settings-panel" data-settings-panel="quick" hidden>
           <h2 class="settings-title">Quick actions</h2>
           <p class="field-help">
-            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here, or tap <strong>Add Shortcut</strong> on a logged meal or workout, name it, and save. After that, tapping the button logs it instantly.
+            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here, or tap <strong>Add Shortcut</strong> on a logged meal or workout, name it, and save. After that, tapping the button logs it instantly from the box at the top.
           </p>
           <div class="qa-type-tabs" role="tablist" aria-label="Quick action type">
             <button type="button" class="tab active" data-qa-type="nutrition" role="tab" aria-selected="true">
@@ -452,6 +536,28 @@
           <p class="field-help" id="account-help">
             Local accounts stay on this browser. Google accounts sync to a <strong>Log it</strong> folder in your Drive.
           </p>
+
+          <div class="profile-block">
+            <h3 class="settings-subtitle">About you</h3>
+            <p class="field-help">
+              Age, sex, height, and activity also feed the macro calculator under Goals.
+            </p>
+            <div class="goals-grid">
+              <label class="goal-field">
+                <span>Age</span>
+                <input type="number" id="profile-age" class="field-input" min="1" max="120" step="1" placeholder="e.g. 42" />
+              </label>
+              <div class="goal-field">
+                <span>Sex</span>
+                <div class="sex-picks" id="profile-sex-picks" role="radiogroup" aria-label="Sex">
+                  <button type="button" class="sex-pick" data-profile-sex="M" role="radio" aria-checked="false">M</button>
+                  <button type="button" class="sex-pick" data-profile-sex="F" role="radio" aria-checked="false">F</button>
+                </div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-primary" id="save-profile-btn">Save profile</button>
+            <p class="log-hint" id="profile-hint" hidden></p>
+          </div>
           <div id="drive-sync-box" class="sync-box" hidden>
             <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
             <p class="drive-links" id="drive-links" hidden></p>
@@ -505,10 +611,24 @@
           spellcheck="false"
           placeholder="e.g. Breakfast"
         />
-        <p class="field-help" id="qa-slot-lead">Give it a name you will recognize on the Nutrition or Exercise tab.</p>
+        <p class="field-help" id="qa-slot-lead">Give it a name you will recognize under the log box.</p>
         <p class="log-hint" id="qa-slot-hint" hidden></p>
         <div id="qa-slot-choices" class="qa-slot-choices" hidden></div>
         <button type="button" class="btn btn-primary" id="qa-slot-save">Save shortcut</button>
+      </div>
+    </div>
+
+    <div class="modal-backdrop profile-onboard" id="profile-onboard" hidden>
+      <div class="modal profile-qa" role="dialog" aria-modal="true" aria-labelledby="qa-step-title">
+        <p class="setup-card-kicker" id="qa-step-kicker">1 of 4</p>
+        <h2 id="qa-step-title">How old are you?</h2>
+        <p class="field-help" id="qa-step-help"></p>
+        <div id="qa-step-body"></div>
+        <p class="log-hint" id="qa-step-hint" hidden></p>
+        <div class="profile-qa-actions">
+          <button type="button" class="btn btn-ghost" id="qa-skip-btn" hidden>Skip for now</button>
+          <button type="button" class="btn btn-primary" id="qa-next-btn">Continue</button>
+        </div>
       </div>
     </div>
 
@@ -536,12 +656,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260907-theme"></script>
-    <script src="js/storage.js?v=20260907-theme"></script>
-    <script src="js/providers.js?v=20260907-theme"></script>
-    <script src="js/auth.js?v=20260907-theme"></script>
-    <script src="js/google.js?v=20260907-theme"></script>
-    <script src="js/grok.js?v=20260907-theme"></script>
-    <script src="js/app.js?v=20260907-theme"></script>
+    <script src="js/config.js?v=20260907-calc3"></script>
+    <script src="js/storage.js?v=20260907-calc3"></script>
+    <script src="js/providers.js?v=20260907-calc3"></script>
+    <script src="js/auth.js?v=20260907-calc3"></script>
+    <script src="js/google.js?v=20260907-calc3"></script>
+    <script src="js/grok.js?v=20260907-calc3"></script>
+    <script src="js/app.js?v=20260907-calc3"></script>
   </body>
 </html>
