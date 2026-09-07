@@ -393,8 +393,11 @@ button {
 
 .entry-actions {
   display: flex;
-  gap: 0.2rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.15rem;
   flex-shrink: 0;
+  max-width: 12.5rem;
 }
 
 .meal-edit,
@@ -1541,4 +1544,17 @@ button {
 
 .edit-actions .btn-ghost {
   width: 100%;
+}
+
+.qa-slot-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.qa-replace-btn {
+  width: 100%;
+  text-align: left;
+  justify-content: flex-start;
 }

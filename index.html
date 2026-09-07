@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-qainstant" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-qasave" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -346,7 +346,7 @@
         <section class="settings-panel" data-settings-panel="quick" hidden>
           <h2 class="settings-title">Quick actions</h2>
           <p class="field-help">
-            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here. After that, tapping the button on Nutrition or Exercise logs it instantly — no waiting.
+            Create up to 3 nutrition and 3 exercise shortcuts. AI runs once here, or tap <strong>Shortcut</strong> on a logged meal or workout to save it without calling AI again. After that, tapping the button logs it instantly.
           </p>
           <div class="qa-type-tabs" role="tablist" aria-label="Quick action type">
             <button type="button" class="tab active" data-qa-type="nutrition" role="tab" aria-selected="true">
@@ -442,12 +442,27 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-qainstant"></script>
-    <script src="js/storage.js?v=20260907-qainstant"></script>
-    <script src="js/providers.js?v=20260907-qainstant"></script>
-    <script src="js/auth.js?v=20260907-qainstant"></script>
-    <script src="js/google.js?v=20260907-qainstant"></script>
-    <script src="js/grok.js?v=20260907-qainstant"></script>
-    <script src="js/app.js?v=20260907-qainstant"></script>
+    <div class="modal-backdrop" id="qa-slot-modal" hidden>
+      <div class="modal edit-modal" role="dialog" aria-modal="true" aria-labelledby="qa-slot-title">
+        <div class="modal-header">
+          <h2 id="qa-slot-title">Save as quick action</h2>
+          <button type="button" class="icon-btn" id="qa-slot-cancel" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <p class="field-help" id="qa-slot-lead">All 3 shortcuts are full. Pick one to replace.</p>
+        <div id="qa-slot-choices" class="qa-slot-choices"></div>
+      </div>
+    </div>
+
+    <script src="js/config.js?v=20260907-qasave"></script>
+    <script src="js/storage.js?v=20260907-qasave"></script>
+    <script src="js/providers.js?v=20260907-qasave"></script>
+    <script src="js/auth.js?v=20260907-qasave"></script>
+    <script src="js/google.js?v=20260907-qasave"></script>
+    <script src="js/grok.js?v=20260907-qasave"></script>
+    <script src="js/app.js?v=20260907-qasave"></script>
   </body>
 </html>
