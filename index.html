@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-qasave" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-stayin" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -457,12 +457,32 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-qasave"></script>
-    <script src="js/storage.js?v=20260907-qasave"></script>
-    <script src="js/providers.js?v=20260907-qasave"></script>
-    <script src="js/auth.js?v=20260907-qasave"></script>
-    <script src="js/google.js?v=20260907-qasave"></script>
-    <script src="js/grok.js?v=20260907-qasave"></script>
-    <script src="js/app.js?v=20260907-qasave"></script>
+    <script>
+      try {
+        var raw = localStorage.getItem("mmc-auth-v1");
+        var auth = raw ? JSON.parse(raw) : {};
+        var sid = auth && auth.sessionId;
+        if (!sid) {
+          var cookie = document.cookie.split("; ").find(function (part) {
+            return part.indexOf("mmc-session=") === 0;
+          });
+          sid = cookie ? decodeURIComponent(cookie.slice("mmc-session=".length)) : "";
+        }
+        if (sid) {
+          var authEl = document.getElementById("auth-screen");
+          var appEl = document.getElementById("app-shell");
+          if (authEl) authEl.hidden = true;
+          if (appEl) appEl.hidden = false;
+        }
+      } catch (e) {}
+    </script>
+
+    <script src="js/config.js?v=20260907-stayin"></script>
+    <script src="js/storage.js?v=20260907-stayin"></script>
+    <script src="js/providers.js?v=20260907-stayin"></script>
+    <script src="js/auth.js?v=20260907-stayin"></script>
+    <script src="js/google.js?v=20260907-stayin"></script>
+    <script src="js/grok.js?v=20260907-stayin"></script>
+    <script src="js/app.js?v=20260907-stayin"></script>
   </body>
 </html>

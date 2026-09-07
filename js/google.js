@@ -7,6 +7,8 @@ window.MMC = window.MMC || {};
   const SCOPES = `openid email profile ${DRIVE_FILE_SCOPE}`;
   const GIS_SRC = "https://accounts.google.com/gsi/client";
   const FOLDER_NAME = "MMC Tracker";
+  const TOKEN_KEY = "mmc-google-token-v1";
+  const CONSENT_KEY = "mmc-google-consented";
   const FILE_NAME = () => window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
 
   let accessToken = "";
@@ -19,6 +21,7 @@ window.MMC = window.MMC || {};
   let syncTimer = null;
   let lastSyncAt = 0;
   let lastSyncError = "";
+  let grantedScopes = "";
 
   function getClientId() {
     const fromSettings = (localStorage.getItem(window.MMC.GOOGLE_CLIENT_ID_KEY) || "").trim();
@@ -89,7 +92,56 @@ window.MMC = window.MMC || {};
     return tokenClient;
   }
 
-  let grantedScopes = "";
+  function saveToken(resp) {
+    const token = resp?.access_token || "";
+    const seconds = Number(resp?.expires_in) || 3600;
+    if (!token) return;
+    accessToken = token;
+    grantedScopes = resp.scope || grantedScopes || SCOPES;
+    try {
+      localStorage.setItem(
+        TOKEN_KEY,
+        JSON.stringify({
+          access_token: token,
+          scope: grantedScopes,
+          expires_at: Date.now() + Math.max(60, seconds - 30) * 1000,
+        })
+      );
+      localStorage.setItem(CONSENT_KEY, "1");
+    } catch {
+      /* ignore quota */
+    }
+  }
+
+  function clearStoredToken() {
+    accessToken = "";
+    grantedScopes = "";
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function applyStoredToken() {
+    if (accessToken) return true;
+    try {
+      const raw = localStorage.getItem(TOKEN_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (!data?.access_token || Date.now() >= Number(data.expires_at || 0)) {
+        localStorage.removeItem(TOKEN_KEY);
+        return false;
+      }
+      accessToken = data.access_token;
+      grantedScopes = data.scope || SCOPES;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  applyStoredToken();
 
   function tokenHasDriveScope() {
     return (
@@ -131,15 +183,14 @@ window.MMC = window.MMC || {};
             reject(new Error(resp.error_description || resp.error));
             return;
           }
-          accessToken = resp.access_token || "";
-          grantedScopes = resp.scope || SCOPES;
+          saveToken(resp);
           if (!accessToken) {
             reject(new Error("Google did not return an access token."));
             return;
           }
           resolve(accessToken);
         };
-        client.requestAccessToken({ prompt: prompt ?? "consent" });
+        client.requestAccessToken({ prompt: prompt ?? "" });
       } catch (err) {
         reject(err);
       }
@@ -158,6 +209,11 @@ window.MMC = window.MMC || {};
     });
     if (res.status === 401) {
       accessToken = "";
+      try {
+        localStorage.removeItem(TOKEN_KEY);
+      } catch {
+        /* ignore */
+      }
       throw new Error("Google session expired. Sign in again.");
     }
     return res;
@@ -334,18 +390,21 @@ window.MMC = window.MMC || {};
   }
 
   window.MMC.googleSignIn = async function googleSignIn() {
-    await requestToken("consent");
-    if (!tokenHasVisibleDrive()) {
-      await requestToken("consent");
+    if (!applyStoredToken() || !tokenHasVisibleDrive()) {
+      const prompt = localStorage.getItem(CONSENT_KEY) ? "" : "consent";
+      await requestToken(prompt);
+      if (!tokenHasVisibleDrive()) {
+        await requestToken("consent");
+      }
     }
     return fetchProfile();
   };
 
-  window.MMC.googleRestoreToken = async function googleRestoreToken() {
-    if (accessToken) return true;
-    if (!getClientId()) return false;
+  window.MMC.googleRestoreToken = async function googleRestoreToken(interactive = false) {
+    if (applyStoredToken()) return true;
+    if (!getClientId() || !interactive) return false;
     try {
-      await requestToken("");
+      await requestToken(localStorage.getItem(CONSENT_KEY) ? "" : "consent");
       await window.MMC.flushDrivePush();
       return true;
     } catch {
@@ -355,8 +414,7 @@ window.MMC = window.MMC || {};
 
   window.MMC.googleSignOut = function googleSignOut() {
     const token = accessToken;
-    accessToken = "";
-    grantedScopes = "";
+    clearStoredToken();
     fileId = null;
     folderId = null;
     folderUrl = "";

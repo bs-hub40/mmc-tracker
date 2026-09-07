@@ -616,7 +616,8 @@
       return;
     }
     if (!status.connected) {
-      els.driveSyncStatus.textContent = "Drive: reconnect this session to sync";
+      els.driveSyncStatus.textContent =
+        "Drive: tap Sync now if this device needs to reconnect";
       return;
     }
     els.driveSyncStatus.textContent = status.lastSyncAt
@@ -682,7 +683,7 @@
     setHint(els.driveSyncHint, "");
     els.driveSyncBtn.disabled = true;
     try {
-      const ok = await googleRestoreToken();
+      const ok = await googleRestoreToken(true);
       if (!ok) {
         await googleSignIn();
       }

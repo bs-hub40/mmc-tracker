@@ -2,24 +2,48 @@ window.MMC = window.MMC || {};
 
 (() => {
   const AUTH_KEY = "mmc-auth-v1";
+  const SESSION_COOKIE = "mmc-session";
   const dataKey = (userId) => `mmc-data-${userId}`;
+
+  function setSessionCookie(id) {
+    const value = String(id || "").trim();
+    const secure = location.protocol === "https:" ? "; Secure" : "";
+    if (!value) {
+      document.cookie = `${SESSION_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax${secure}`;
+      return;
+    }
+    document.cookie = `${SESSION_COOKIE}=${encodeURIComponent(value)}; Max-Age=31536000; Path=/; SameSite=Lax${secure}`;
+  }
+
+  function readSessionCookie() {
+    const parts = String(document.cookie || "").split("; ");
+    const prefix = `${SESSION_COOKIE}=`;
+    const hit = parts.find((part) => part.startsWith(prefix));
+    if (!hit) return null;
+    try {
+      return decodeURIComponent(hit.slice(prefix.length)) || null;
+    } catch {
+      return null;
+    }
+  }
 
   function loadAuth() {
     try {
       const raw = localStorage.getItem(AUTH_KEY);
-      if (!raw) return { accounts: {}, sessionId: null };
+      if (!raw) return { accounts: {}, sessionId: readSessionCookie() };
       const parsed = JSON.parse(raw);
       return {
         accounts: parsed.accounts || {},
-        sessionId: parsed.sessionId || null,
+        sessionId: parsed.sessionId || readSessionCookie() || null,
       };
     } catch {
-      return { accounts: {}, sessionId: null };
+      return { accounts: {}, sessionId: readSessionCookie() };
     }
   }
 
   function saveAuth(auth) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+    setSessionCookie(auth.sessionId || "");
   }
 
   function bufferToHex(buffer) {
