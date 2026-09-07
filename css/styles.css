@@ -1236,6 +1236,16 @@ button {
   color: var(--text-muted);
 }
 
+.drive-links {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+}
+
+.drive-links a {
+  color: var(--amber);
+  font-weight: 650;
+}
+
 .settings-panel > .btn-ghost {
   margin-top: 0.75rem;
 }

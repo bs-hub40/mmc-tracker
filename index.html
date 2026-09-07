@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-drivefix" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-drivelink" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -378,15 +378,14 @@
           <h2 class="settings-title">Account</h2>
           <p class="account-line">Signed in as <strong id="settings-username">—</strong></p>
           <p class="field-help" id="account-help">
-            Local accounts stay on this browser. Google accounts sync to a private app folder on your Drive.
+            Local accounts stay on this browser. Google accounts sync to an <strong>MMC Tracker</strong> folder in your Drive.
           </p>
           <div id="drive-sync-box" class="sync-box" hidden>
             <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
+            <p class="drive-links" id="drive-links" hidden></p>
             <button type="button" class="btn btn-primary" id="drive-sync-btn">Sync now</button>
             <p class="field-help">
-              “Connected” means Google sign-in worked. Sync also needs
-              <a href="https://console.cloud.google.com/apis/library/drive.googleapis.com" target="_blank" rel="noopener noreferrer">Google Drive API</a>
-              enabled in the same Cloud project.
+              Backups go in a Drive folder named <strong>MMC Tracker</strong>. After you sync, open it from the links above.
             </p>
             <p class="log-hint" id="drive-sync-hint" hidden></p>
           </div>
@@ -428,12 +427,12 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-drivefix"></script>
-    <script src="js/storage.js?v=20260907-drivefix"></script>
-    <script src="js/providers.js?v=20260907-drivefix"></script>
-    <script src="js/auth.js?v=20260907-drivefix"></script>
-    <script src="js/google.js?v=20260907-drivefix"></script>
-    <script src="js/grok.js?v=20260907-drivefix"></script>
-    <script src="js/app.js?v=20260907-drivefix"></script>
+    <script src="js/config.js?v=20260907-drivelink"></script>
+    <script src="js/storage.js?v=20260907-drivelink"></script>
+    <script src="js/providers.js?v=20260907-drivelink"></script>
+    <script src="js/auth.js?v=20260907-drivelink"></script>
+    <script src="js/google.js?v=20260907-drivelink"></script>
+    <script src="js/grok.js?v=20260907-drivelink"></script>
+    <script src="js/app.js?v=20260907-drivelink"></script>
   </body>
 </html>

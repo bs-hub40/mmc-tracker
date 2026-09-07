@@ -1,13 +1,19 @@
 window.MMC = window.MMC || {};
 
 (() => {
-  const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
-  const SCOPES = `openid email profile ${DRIVE_SCOPE}`;
+  const APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
+  const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+  const SCOPES = `openid email profile ${DRIVE_FILE_SCOPE} ${APPDATA_SCOPE}`;
   const GIS_SRC = "https://accounts.google.com/gsi/client";
+  const FOLDER_NAME = "MMC Tracker";
+  const FILE_NAME = () => window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
 
   let accessToken = "";
   let tokenClient = null;
   let fileId = null;
+  let folderId = null;
+  let folderUrl = "";
+  let fileUrl = "";
   let gisPromise = null;
   let syncTimer = null;
   let lastSyncAt = 0;
@@ -33,6 +39,9 @@ window.MMC = window.MMC || {};
       lastSyncAt,
       lastSyncError,
       fileId,
+      folderId,
+      folderUrl,
+      fileUrl,
     };
   };
 
@@ -82,7 +91,15 @@ window.MMC = window.MMC || {};
   let grantedScopes = "";
 
   function tokenHasDriveScope() {
-    return grantedScopes.includes("drive.appdata") || grantedScopes.includes("auth/drive");
+    return (
+      grantedScopes.includes("drive.file") ||
+      grantedScopes.includes("drive.appdata") ||
+      grantedScopes.includes("auth/drive")
+    );
+  }
+
+  function tokenHasVisibleDrive() {
+    return grantedScopes.includes("drive.file") || grantedScopes.includes("auth/drive");
   }
 
   async function readGoogleError(res, fallback) {
@@ -98,7 +115,7 @@ window.MMC = window.MMC || {};
       return "Google Drive API is not enabled on this Cloud project. Enable it, wait a minute, then tap Sync now.";
     }
     if (res.status === 403 && (text.includes("insufficient") || text.includes("access_denied") || text.includes("permission"))) {
-      return "Drive permission is missing. Sign out, then Continue with Google again and allow the app folder.";
+      return "Drive permission is missing. Sign out, Continue with Google, and allow creating files in Drive.";
     }
     if (detail) return detail;
     return `${fallback} (HTTP ${res.status})`;
@@ -154,46 +171,89 @@ window.MMC = window.MMC || {};
     };
   }
 
-  async function findDriveFile() {
-    const name = window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
-    const params = new URLSearchParams({
-      spaces: "appDataFolder",
-      fields: "files(id,name,modifiedTime)",
-      pageSize: "20",
-    });
-    const res = await api(`https://www.googleapis.com/drive/v3/files?${params}`);
-    if (!res.ok) {
-      throw new Error(await readGoogleError(res, "Could not look up Google Drive data."));
-    }
-    const data = await res.json();
-    const match = (data.files || []).find((f) => f.name === name);
-    fileId = match?.id || null;
-    return fileId;
+  function folderLink(id) {
+    return id ? `https://drive.google.com/drive/folders/${encodeURIComponent(id)}` : "";
   }
 
-  async function downloadDriveState() {
-    if (!fileId) await findDriveFile();
-    if (!fileId) return null;
-    const res = await api(
-      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media`
-    );
-    if (res.status === 404) {
-      fileId = null;
-      return null;
+  function fileLink(id) {
+    return id ? `https://drive.google.com/file/d/${encodeURIComponent(id)}/view` : "";
+  }
+
+  async function driveJson(url, options = {}) {
+    const res = await api(url, options);
+    if (!res.ok) {
+      throw new Error(await readGoogleError(res, "Google Drive request failed."));
     }
+    if (res.status === 204) return null;
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  async function findNamedFile({ name, mimeType, parentId, spaces }) {
+    const clauses = [`name='${name.replace(/'/g, "\\'")}'`, "trashed=false"];
+    if (mimeType) clauses.push(`mimeType='${mimeType}'`);
+    if (parentId) clauses.push(`'${parentId}' in parents`);
+    const params = new URLSearchParams({
+      q: clauses.join(" and "),
+      fields: "files(id,name,webViewLink)",
+      pageSize: "10",
+    });
+    if (spaces) params.set("spaces", spaces);
+    const data = await driveJson(`https://www.googleapis.com/drive/v3/files?${params}`);
+    return data?.files?.[0] || null;
+  }
+
+  async function ensureVisibleFolder() {
+    if (folderId) {
+      folderUrl = folderUrl || folderLink(folderId);
+      return folderId;
+    }
+    let folder = await findNamedFile({
+      name: FOLDER_NAME,
+      mimeType: "application/vnd.google-apps.folder",
+    });
+    if (!folder) {
+      folder = await driveJson("https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: FOLDER_NAME,
+          mimeType: "application/vnd.google-apps.folder",
+        }),
+      });
+    }
+    folderId = folder?.id || null;
+    folderUrl = folder?.webViewLink || folderLink(folderId);
+    return folderId;
+  }
+
+  async function findVisibleBackup() {
+    const parent = await ensureVisibleFolder();
+    if (!parent) return null;
+    return findNamedFile({ name: FILE_NAME(), parentId: parent });
+  }
+
+  async function findAppDataBackup() {
+    return findNamedFile({
+      name: FILE_NAME(),
+      spaces: "appDataFolder",
+    });
+  }
+
+  async function downloadById(id) {
+    const res = await api(
+      `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?alt=media`
+    );
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error(await readGoogleError(res, "Could not download tracker data from Drive."));
     return res.json();
   }
 
-  async function uploadDriveState(state) {
-    const name = window.MMC.DRIVE_FILE_NAME || "mmc-tracker.json";
-    const body = JSON.stringify(state);
-    if (!fileId) await findDriveFile();
-
-    if (fileId) {
+  async function multipartUpload({ metadata, body, fileIdToUpdate }) {
+    if (fileIdToUpdate) {
       const res = await api(
         `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(
-          fileId
+          fileIdToUpdate
         )}?uploadType=media`,
         {
           method: "PATCH",
@@ -202,10 +262,11 @@ window.MMC = window.MMC || {};
         }
       );
       if (!res.ok) throw new Error(await readGoogleError(res, "Could not update Google Drive data."));
+      fileId = fileIdToUpdate;
+      fileUrl = fileLink(fileId);
       return;
     }
 
-    const metadata = { name, parents: ["appDataFolder"] };
     const boundary = `mmc_${Date.now().toString(16)}`;
     const multipart =
       `--${boundary}\r\n` +
@@ -216,22 +277,53 @@ window.MMC = window.MMC || {};
       `${body}\r\n` +
       `--${boundary}--`;
 
-    const res = await api(
-      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+    const created = await driveJson(
+      "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",
       {
         method: "POST",
         headers: { "Content-Type": `multipart/related; boundary=${boundary}` },
         body: multipart,
       }
     );
-    if (!res.ok) throw new Error(await readGoogleError(res, "Could not create Google Drive data."));
-    const created = await res.json();
-    fileId = created.id || null;
+    fileId = created?.id || null;
+    fileUrl = created?.webViewLink || fileLink(fileId);
+  }
+
+  async function downloadDriveState() {
+    const visible = await findVisibleBackup().catch(() => null);
+    if (visible?.id) {
+      fileId = visible.id;
+      fileUrl = visible.webViewLink || fileLink(visible.id);
+      return downloadById(visible.id);
+    }
+
+    const hidden = await findAppDataBackup().catch(() => null);
+    if (hidden?.id) return downloadById(hidden.id);
+    return null;
+  }
+
+  async function uploadDriveState(state) {
+    const name = FILE_NAME();
+    const body = JSON.stringify(state);
+    const parent = await ensureVisibleFolder();
+    if (!parent) throw new Error("Could not create the MMC Tracker folder in Drive.");
+
+    const existing = await findVisibleBackup();
+    if (existing?.id) {
+      await multipartUpload({ metadata: { name }, body, fileIdToUpdate: existing.id });
+      fileUrl = existing.webViewLink || fileLink(existing.id);
+      return;
+    }
+
+    await multipartUpload({
+      metadata: { name, parents: [parent] },
+      body,
+    });
   }
 
   window.MMC.googleSignIn = async function googleSignIn() {
     await requestToken("consent");
-    if (!tokenHasDriveScope()) {
+    if (!tokenHasVisibleDrive()) {
       await requestToken("consent");
     }
     return fetchProfile();
@@ -253,6 +345,9 @@ window.MMC = window.MMC || {};
     accessToken = "";
     grantedScopes = "";
     fileId = null;
+    folderId = null;
+    folderUrl = "";
+    fileUrl = "";
     lastSyncError = "";
     if (token && window.google?.accounts?.oauth2?.revoke) {
       window.google.accounts.oauth2.revoke(token, () => {});
@@ -268,6 +363,9 @@ window.MMC = window.MMC || {};
 
   window.MMC.drivePush = async function drivePush(state) {
     if (!accessToken) return false;
+    if (!tokenHasVisibleDrive()) {
+      await requestToken("consent");
+    }
     await uploadDriveState(state);
     lastSyncAt = Date.now();
     lastSyncError = "";

@@ -157,6 +157,7 @@
     accountHelp: document.getElementById("account-help"),
     driveSyncBox: document.getElementById("drive-sync-box"),
     driveSyncStatus: document.getElementById("drive-sync-status"),
+    driveLinks: document.getElementById("drive-links"),
     driveSyncBtn: document.getElementById("drive-sync-btn"),
     driveSyncHint: document.getElementById("drive-sync-hint"),
     googleClientId: document.getElementById("google-client-id"),
@@ -362,7 +363,7 @@
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = !clientId;
     if (els.googleAuthHelp) {
       els.googleAuthHelp.textContent = clientId
-        ? "Uses your Google account. Tracker data syncs to a hidden app folder on your Drive — not your visible files."
+        ? "Uses your Google account. Tracker data syncs to an MMC Tracker folder in your Drive."
         : "Open Google setup below (or Settings) and paste a Google OAuth Client ID first.";
     }
   }
@@ -512,7 +513,7 @@
     if (els.accountHelp) {
       els.accountHelp.textContent =
         session?.provider === "google"
-          ? "Signed in with Google. Your log syncs to a private app folder on this Google Drive."
+          ? "Signed in with Google. Your log syncs to an MMC Tracker folder in this Google Drive."
           : "Local account on this browser. Sign in with Google to sync across phone and desktop.";
     }
     if (els.googleClientId) els.googleClientId.value = getGoogleClientId();
@@ -531,6 +532,26 @@
     els.driveSyncBox.hidden = !googleUser;
     if (!googleUser) return;
     const status = googleSyncStatus();
+    if (els.driveLinks) {
+      if (status.folderUrl || status.fileUrl) {
+        els.driveLinks.hidden = false;
+        const bits = [];
+        if (status.folderUrl) {
+          bits.push(
+            `<a href="${status.folderUrl}" target="_blank" rel="noopener noreferrer">Open MMC Tracker folder</a>`
+          );
+        }
+        if (status.fileUrl) {
+          bits.push(
+            `<a href="${status.fileUrl}" target="_blank" rel="noopener noreferrer">Open backup file</a>`
+          );
+        }
+        els.driveLinks.innerHTML = bits.join(" · ");
+      } else {
+        els.driveLinks.hidden = true;
+        els.driveLinks.innerHTML = "";
+      }
+    }
     if (status.lastSyncError) {
       els.driveSyncStatus.textContent = `Drive: ${status.lastSyncError}`;
       return;
