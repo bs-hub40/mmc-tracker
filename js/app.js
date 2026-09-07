@@ -27,9 +27,6 @@
     weightStats,
     formatWeightDate,
     getSession,
-    hasAccounts,
-    createAccount,
-    login,
     loginWithGoogle,
     logout,
     parseMealWithGrok,
@@ -37,9 +34,7 @@
     parseLogWithGrok,
     AI_PROVIDERS,
     getActiveApiKey,
-    setActiveApiKey,
     normalizeProvider,
-    normalizeModel,
     migrateAiSettings,
     sanitizeQuickActions,
     clonePayload,
@@ -49,7 +44,6 @@
     sanitizeTheme,
     THEME_KEY,
     getGoogleClientId,
-    setGoogleClientId,
     googleSignIn,
     googleRestoreToken,
     googleSignOut,
@@ -108,7 +102,6 @@
   let session = null;
   let currentMode = "nutrition";
   let currentView = "today";
-  let authTab = "login";
   let appReady = false;
   let qaEditType = "nutrition";
   let settingsSection = "goals";
@@ -117,16 +110,9 @@
   const els = {
     authScreen: document.getElementById("auth-screen"),
     appShell: document.getElementById("app-shell"),
-    authForm: document.getElementById("auth-form"),
-    authUsername: document.getElementById("auth-username"),
-    authPassword: document.getElementById("auth-password"),
-    authSubmit: document.getElementById("auth-submit"),
     authError: document.getElementById("auth-error"),
-    authHelp: document.getElementById("auth-help"),
     googleSignInBtn: document.getElementById("google-signin-btn"),
     googleAuthHelp: document.getElementById("google-auth-help"),
-    authGoogleClientId: document.getElementById("auth-google-client-id"),
-    authSaveGoogleClient: document.getElementById("auth-save-google-client"),
     macros: document.getElementById("macros"),
     energyCard: document.getElementById("energy-card"),
     dailyTracker: document.getElementById("daily-tracker"),
@@ -161,14 +147,6 @@
     logCompose: document.getElementById("log-compose"),
     logJumpBtn: document.getElementById("log-jump-btn"),
     quickActions: document.getElementById("quick-actions"),
-    aiSetup: document.getElementById("ai-setup"),
-    onboardProviders: document.getElementById("onboard-providers"),
-    onboardKeyLink: document.getElementById("onboard-key-link"),
-    onboardKeyHelp: document.getElementById("onboard-key-help"),
-    onboardKeySteps: document.getElementById("onboard-key-steps"),
-    onboardApiKey: document.getElementById("onboard-api-key"),
-    onboardSaveBtn: document.getElementById("onboard-save-btn"),
-    onboardHint: document.getElementById("onboard-hint"),
     toast: document.getElementById("toast"),
     weightInput: document.getElementById("weight-input"),
     weightUnit: document.getElementById("weight-unit"),
@@ -215,16 +193,6 @@
     macroApplyBtn: document.getElementById("macro-apply-btn"),
     themeSwatches: document.getElementById("theme-swatches"),
     themeHint: document.getElementById("theme-hint"),
-    apiKey: document.getElementById("api-key"),
-    apiKeyHelp: document.getElementById("api-key-help"),
-    providerSelect: document.getElementById("provider-select"),
-    modelSelect: document.getElementById("model-select"),
-    saveApiBtn: document.getElementById("save-api-btn"),
-    apiHint: document.getElementById("api-hint"),
-    settingsKeyLink: document.getElementById("settings-key-link"),
-    settingsProviders: document.getElementById("settings-providers"),
-    settingsKeySteps: document.getElementById("settings-key-steps"),
-    settingsKeyNote: document.getElementById("settings-key-note"),
     qaEditor: document.getElementById("qa-editor"),
     saveQaBtn: document.getElementById("save-qa-btn"),
     qaHint: document.getElementById("qa-hint"),
@@ -235,9 +203,6 @@
     driveLinks: document.getElementById("drive-links"),
     driveSyncBtn: document.getElementById("drive-sync-btn"),
     driveSyncHint: document.getElementById("drive-sync-hint"),
-    googleClientId: document.getElementById("google-client-id"),
-    saveGoogleClientBtn: document.getElementById("save-google-client-btn"),
-    googleClientHint: document.getElementById("google-client-hint"),
     settingsLogoutBtn: document.getElementById("settings-logout-btn"),
     editModal: document.getElementById("edit-modal"),
     editTitle: document.getElementById("edit-title"),
@@ -267,7 +232,6 @@
   let pendingQaSave = null;
   let toastTimer = null;
   let logBusy = false;
-  let onboardProvider = "xai";
   let setupQueue = [];
   let setupIndex = 0;
   let qaSexPick = "";
@@ -392,89 +356,23 @@
     }, 2800);
   }
 
-  function hasAiKey() {
-    return Boolean(getActiveApiKey(state)?.trim());
+  function hasHostedAi() {
+    return Boolean(String(window.MMC.AI_PROXY_URL || "").trim());
+  }
+
+  function hasAiAccess() {
+    return hasHostedAi();
   }
 
   function syncAiGate() {
-    if (!els.aiSetup) return;
-    const ready = hasAiKey();
-    els.aiSetup.hidden = ready;
+    const ready = hasAiAccess();
     if (els.logCompose) els.logCompose.hidden = !ready;
     if (currentMode === "nutrition" || currentMode === "activity") {
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
       if (els.micBtn) els.micBtn.disabled = logBusy || !ready;
     }
-    if (!ready) renderOnboard();
     renderQuickActions();
-  }
-
-  function renderProviderPicks(container, activeId) {
-    if (!container) return;
-    const current = normalizeProvider(activeId);
-    container.innerHTML = Object.values(AI_PROVIDERS)
-      .map((p) => {
-        const rec = p.id === "gemini" ? '<span class="pick-note">easy</span>' : "";
-        const active = p.id === current ? " active" : "";
-        return `<button type="button" class="provider-pick${active}" data-ai-provider="${p.id}" role="radio" aria-checked="${p.id === current}">${p.pickLabel || p.label}${rec}</button>`;
-      })
-      .join("");
-  }
-
-  function applyKeyGuide(cfg, { link, stepsEl, noteEl, keyInput }) {
-    if (!cfg) return;
-    if (link) {
-      link.href = cfg.keyUrl;
-      link.textContent = `Open ${cfg.pickLabel || cfg.label} key page`;
-    }
-    if (stepsEl) {
-      stepsEl.innerHTML = (cfg.setupSteps || []).map((step) => `<li>${step}</li>`).join("");
-    }
-    if (noteEl) noteEl.textContent = cfg.setupNote || "";
-    if (keyInput) keyInput.placeholder = cfg.keyHint;
-  }
-
-  function renderOnboard() {
-    if (!els.onboardProviders || !state) return;
-    onboardProvider = normalizeProvider(onboardProvider || state.provider || "xai");
-    renderProviderPicks(els.onboardProviders, onboardProvider);
-    syncOnboardProviderUi();
-  }
-
-  function syncOnboardProviderUi() {
-    const cfg = AI_PROVIDERS[normalizeProvider(onboardProvider)];
-    applyKeyGuide(cfg, {
-      link: els.onboardKeyLink,
-      stepsEl: els.onboardKeySteps,
-      noteEl: els.onboardKeyHelp,
-      keyInput: els.onboardApiKey,
-    });
-  }
-
-  function saveOnboardApi() {
-    const provider = normalizeProvider(onboardProvider);
-    const cfg = AI_PROVIDERS[provider];
-    const key = (els.onboardApiKey?.value || "").trim();
-    if (!key) {
-      setHint(els.onboardHint, "Paste your API key first.");
-      return;
-    }
-    if (cfg.keyPrefix && !key.startsWith(cfg.keyPrefix)) {
-      setHint(els.onboardHint, `That doesn’t look like a ${cfg.label} key. ${cfg.keyHint}.`);
-      return;
-    }
-    state.provider = provider;
-    state.model = normalizeModel(cfg.defaultModel, provider);
-    setActiveApiKey(state, key);
-    persist();
-    if (els.onboardApiKey) els.onboardApiKey.value = "";
-    fillSettingsForm();
-    syncAiGate();
-    syncLogPanel();
-    renderQuickActions();
-    showToast(`${cfg.label} connected. You can log now.`, true);
-    els.logInput?.focus();
   }
 
   let speechRec = null;
@@ -571,7 +469,7 @@
   function setBusy(busy) {
     if (currentMode === "weight" || currentMode === "settings") return;
     logBusy = busy;
-    const ready = hasAiKey();
+    const ready = hasAiAccess();
     els.logBtn.disabled = busy || !ready;
     els.logInput.disabled = busy || !ready;
     if (els.micBtn) els.micBtn.disabled = busy || !ready;
@@ -599,7 +497,6 @@
   function showAuth() {
     els.authScreen.hidden = false;
     els.appShell.hidden = true;
-    syncAuthTab();
     syncGoogleAuthUi();
   }
 
@@ -629,7 +526,6 @@
     session = null;
     state = null;
     showAuth();
-    els.authPassword.value = "";
   }
 
   function syncGoogleAuthUi() {
@@ -637,26 +533,9 @@
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = !clientId;
     if (els.googleAuthHelp) {
       els.googleAuthHelp.textContent = clientId
-        ? "Sign in with Google to save your log in a Log it folder on your Drive."
+        ? "Sign in with Google. Google will ask to save a Log it folder on your Drive — tap Allow so your log follows you to other devices."
         : "Google sign-in is not configured for this app build.";
     }
-  }
-
-  function syncAuthTab() {
-    document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-      tab.classList.toggle("active", tab.dataset.authTab === authTab);
-    });
-    const creating = authTab === "create";
-    els.authSubmit.querySelector(".btn-text").textContent = creating
-      ? "Create account"
-      : "Sign in";
-    els.authPassword.autocomplete = creating ? "new-password" : "current-password";
-    els.authHelp.textContent = creating
-      ? hasAccounts()
-        ? "Create another local account on this device. No email required."
-        : "Create your account. Existing local data (if any) will be attached to this first account."
-      : "Sign in to your local account on this device.";
-    setHint(els.authError, "");
   }
 
   function syncLogPanel() {
@@ -727,7 +606,7 @@
   }
 
   function setSettingsSection(section) {
-    const allowed = new Set(["goals", "quick", "ai", "account"]);
+    const allowed = new Set(["goals", "quick", "account"]);
     settingsSection = allowed.has(section) ? section : "goals";
     document.querySelectorAll("[data-settings-section]").forEach((tab) => {
       const active = tab.dataset.settingsSection === settingsSection;
@@ -738,10 +617,6 @@
       panel.hidden = panel.dataset.settingsPanel !== settingsSection;
     });
     if (settingsSection === "quick") renderQaEditor();
-    if (settingsSection === "ai") {
-      fillModelSelect(state.provider, state.model);
-      syncApiKeyField();
-    }
   }
 
   function setView(view) {
@@ -759,50 +634,6 @@
     if (view !== "today") renderTrends();
   }
 
-  function fillProviderSelect() {
-    els.providerSelect.innerHTML = Object.values(AI_PROVIDERS)
-      .map(
-        (p) =>
-          `<option value="${p.id}">${p.label}</option>`
-      )
-      .join("");
-  }
-
-  function fillModelSelect(providerId, selectedModel) {
-    const cfg = AI_PROVIDERS[normalizeProvider(providerId)];
-    els.modelSelect.innerHTML = cfg.models
-      .map(
-        (m) =>
-          `<option value="${m.id}">${m.label}</option>`
-      )
-      .join("");
-    els.modelSelect.value = normalizeModel(selectedModel, cfg.id);
-  }
-
-  function syncApiKeyField() {
-    const provider = normalizeProvider(els.providerSelect.value);
-    const cfg = AI_PROVIDERS[provider];
-    applyKeyGuide(cfg, {
-      link: els.settingsKeyLink,
-      stepsEl: els.settingsKeySteps,
-      noteEl: els.settingsKeyNote,
-      keyInput: els.apiKey,
-    });
-    if (els.apiKeyHelp) {
-      els.apiKeyHelp.textContent = `${cfg.keyHint}. Stored only in this account (and Drive if you use Google).`;
-    }
-    const keys = state.apiKeys || {};
-    els.apiKey.value = keys[provider] || (provider === "xai" ? state.apiKey || "" : "");
-    renderProviderPicks(els.settingsProviders, provider);
-  }
-
-  function onProviderChange() {
-    const provider = normalizeProvider(els.providerSelect.value);
-    const cfg = AI_PROVIDERS[provider];
-    fillModelSelect(provider, state.provider === provider ? state.model : cfg.defaultModel);
-    syncApiKeyField();
-  }
-
   function fillSettingsForm() {
     const t = targets();
     els.goalCalories.value = t.calories;
@@ -812,21 +643,13 @@
     els.goalFiber.value = t.fiber;
     Object.assign(state, migrateAiSettings(state));
     state.quickActions = sanitizeQuickActions(state.quickActions);
-    els.providerSelect.value = state.provider;
-    fillModelSelect(state.provider, state.model);
-    syncApiKeyField();
     els.settingsUsername.textContent = session?.username || "—";
     if (els.accountHelp) {
       els.accountHelp.textContent =
-        session?.provider === "google"
-          ? "Signed in with Google. Your log syncs to a Log it folder in this Google Drive."
-          : "Local account on this browser. Sign in with Google to sync across phone and desktop.";
+        "Signed in with Google. Your log syncs to a Log it folder in this Google Drive.";
     }
-    if (els.googleClientId) els.googleClientId.value = getGoogleClientId();
     setHint(els.goalsHint, "");
-    setHint(els.apiHint, "");
     setHint(els.qaHint, "");
-    setHint(els.googleClientHint, "");
     setHint(els.driveSyncHint, "");
     renderQaEditor();
     renderDriveStatus();
@@ -914,12 +737,12 @@
   async function handleGoogleSignIn() {
     setHint(els.authError, "");
     if (!getGoogleClientId()) {
-      setHint(els.authError, "Add a Google Client ID in Settings first.");
+      setHint(els.authError, "Google sign-in is not configured for this app.");
       return;
     }
     if (els.googleSignInBtn) els.googleSignInBtn.disabled = true;
     try {
-      const profile = await googleSignIn();
+      const profile = await googleSignIn({ forceConsent: true });
       const next = loginWithGoogle(profile);
       enterApp(next);
       await syncFromDrive();
@@ -937,7 +760,7 @@
     try {
       const ok = await googleRestoreToken(true);
       if (!ok) {
-        await googleSignIn();
+        await googleSignIn({ forceConsent: true });
       }
       await syncFromDrive();
       setHint(els.driveSyncHint, "Pulled latest from Google Drive.", true);
@@ -946,18 +769,6 @@
     } finally {
       els.driveSyncBtn.disabled = false;
     }
-  }
-
-  function saveGoogleClient() {
-    if (!els.googleClientId) return;
-    const value = els.googleClientId.value.trim();
-    setGoogleClientId(value);
-    syncGoogleAuthUi();
-    setHint(
-      els.googleClientHint,
-      value ? "Google Client ID saved on this device." : "Google Client ID cleared.",
-      true
-    );
   }
 
   function qaPreviewText(slot) {
@@ -1054,10 +865,9 @@
   }
 
   async function createQuickAction(index) {
-    if (!hasAiKey()) {
-      setHint(els.qaHint, "Add an AI key in the AI tab first.");
-      setSettingsSection("ai");
-      showToast("Add an API key first", false);
+    if (!hasAiAccess()) {
+      setHint(els.qaHint, "AI logging is not available yet.");
+      showToast("AI is not available right now", false);
       return;
     }
     state.quickActions = readQaEditorDraft();
@@ -1160,7 +970,7 @@
     els.quickActions.innerHTML = actions
       .map((action) => {
         const instant = Boolean(action.parsed);
-        const blocked = logBusy || (!instant && !hasAiKey());
+        const blocked = logBusy || (!instant && !hasAiAccess());
         return `
       <button
         type="button"
@@ -1848,9 +1658,9 @@
 
   async function handleLog(presetText) {
     state = ensureToday(state);
-    if (!hasAiKey()) {
+    if (!hasAiAccess()) {
       syncAiGate();
-      showToast("Add an API key in Settings first", false);
+      showToast("AI is not available right now", false);
       return;
     }
 
@@ -2714,52 +2524,6 @@
     showToast(`Goal ${next.weight} ${next.unit}`, true);
   }
 
-  function saveApi() {
-    const provider = normalizeProvider(els.providerSelect.value);
-    const key = els.apiKey.value.trim();
-    const cfg = AI_PROVIDERS[provider];
-    if (key && cfg.keyPrefix && !key.startsWith(cfg.keyPrefix)) {
-      setHint(els.apiHint, `API key should start with ${cfg.keyPrefix}`);
-      return;
-    }
-    state.provider = provider;
-    state.model = normalizeModel(els.modelSelect.value, provider);
-    setActiveApiKey(state, key);
-    persist();
-    syncAiGate();
-    syncLogPanel();
-    fillSettingsForm();
-    setHint(
-      els.apiHint,
-      key
-        ? `Saved ${cfg.label} · ${state.model}.`
-        : `${cfg.label} API key cleared.`,
-      true
-    );
-    if (key) showToast(`${cfg.label} ready to log`, true);
-  }
-
-  async function handleAuthSubmit(e) {
-    e.preventDefault();
-    setHint(els.authError, "");
-    const username = els.authUsername.value;
-    const password = els.authPassword.value;
-    els.authSubmit.disabled = true;
-
-    try {
-      const next =
-        authTab === "create"
-          ? await createAccount(username, password)
-          : await login(username, password);
-      els.authPassword.value = "";
-      enterApp(next);
-    } catch (err) {
-      setHint(els.authError, err.message || "Authentication failed.");
-    } finally {
-      els.authSubmit.disabled = false;
-    }
-  }
-
   function wireAppEvents() {
     document.querySelectorAll(".mode-tabs .mode-tab").forEach((tab) => {
       tab.addEventListener("click", () => setMode(tab.dataset.mode));
@@ -2792,21 +2556,6 @@
         setHint(els.qaHint, "");
         renderQaEditor();
       });
-    });
-
-    els.onboardProviders?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-ai-provider]");
-      if (!btn || !els.onboardProviders.contains(btn)) return;
-      onboardProvider = btn.getAttribute("data-ai-provider");
-      renderOnboard();
-      setHint(els.onboardHint, "");
-    });
-    els.onboardSaveBtn?.addEventListener("click", saveOnboardApi);
-    els.onboardApiKey?.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        saveOnboardApi();
-      }
     });
 
     document.querySelectorAll("[data-settings-section]").forEach((tab) => {
@@ -2983,16 +2732,6 @@
       e.preventDefault();
       submitSetupStep();
     });
-    els.saveApiBtn.addEventListener("click", saveApi);
-    els.settingsProviders?.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-ai-provider]");
-      if (!btn || !els.settingsProviders.contains(btn)) return;
-      els.providerSelect.value = btn.getAttribute("data-ai-provider");
-      onProviderChange();
-      setHint(els.apiHint, "");
-    });
-    els.providerSelect.addEventListener("change", onProviderChange);
-    els.saveGoogleClientBtn?.addEventListener("click", saveGoogleClient);
     els.driveSyncBtn?.addEventListener("click", handleDriveSyncNow);
 
     els.editClose.addEventListener("click", closeEditModal);
@@ -3042,36 +2781,14 @@
     });
   }
 
-  document.querySelectorAll("[data-auth-tab]").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      authTab = tab.dataset.authTab;
-      syncAuthTab();
-    });
-  });
-
-  els.authForm.addEventListener("submit", handleAuthSubmit);
   els.googleSignInBtn?.addEventListener("click", handleGoogleSignIn);
-  els.authSaveGoogleClient?.addEventListener("click", () => {
-    const value = (els.authGoogleClientId?.value || "").trim();
-    setGoogleClientId(value);
-    if (els.googleClientId) els.googleClientId.value = value;
-    syncGoogleAuthUi();
-    setHint(
-      els.authError,
-      value ? "Google Client ID saved. You can Continue with Google." : "Google Client ID cleared.",
-      Boolean(value)
-    );
-  });
-
-  fillProviderSelect();
 
   // Boot
   const existing = getSession();
-  if (existing) {
+  if (existing?.provider === "google") {
     enterApp(existing);
-    if (existing.provider === "google") syncFromDrive();
+    syncFromDrive();
   } else {
-    authTab = hasAccounts() ? "login" : "create";
     showAuth();
   }
 })();

@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#0c0e12" />
     <meta name="color-scheme" content="dark" />
     <title>Log it</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-calc3" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-calc3" />
-    <link rel="shortcut icon" href="favicon.png?v=20260907-calc3" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-calc3" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260907-google1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260907-google1" />
+    <link rel="shortcut icon" href="favicon.png?v=20260907-google1" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260907-google1" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,66 +17,26 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-calc3" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-google1" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="brand auth-brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-calc3" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-google1" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline">AI powered Food, Activity, and Weight Tracker</p>
           </div>
         </div>
 
-        <nav class="auth-tabs" role="tablist">
-          <button type="button" class="tab active" data-auth-tab="login">Sign in</button>
-          <button type="button" class="tab" data-auth-tab="create">Create account</button>
-        </nav>
-
-        <form id="auth-form" class="auth-form" autocomplete="on">
-          <label class="field-label" for="auth-username">Username</label>
-          <input
-            id="auth-username"
-            class="field-input"
-            type="text"
-            name="username"
-            autocomplete="username"
-            required
-            minlength="2"
-            placeholder="Choose a username"
-          />
-
-          <label class="field-label" for="auth-password">Password</label>
-          <input
-            id="auth-password"
-            class="field-input"
-            type="password"
-            name="password"
-            autocomplete="current-password"
-            required
-            minlength="4"
-            placeholder="At least 4 characters"
-          />
-
-          <p class="field-help" id="auth-help">
-            No email needed. Accounts stay on this device — each person gets their own private log.
-          </p>
-          <p class="log-hint" id="auth-error" hidden></p>
-
-          <button type="submit" class="btn btn-primary" id="auth-submit">
-            <span class="btn-text">Sign in</span>
-          </button>
-        </form>
-
-        <div class="auth-divider"><span>or</span></div>
+        <p class="field-help" id="google-auth-help">
+          Sign in with Google. Google will ask to save a <strong>Log it</strong> folder on your Drive — tap Allow so your log follows you to other devices.
+        </p>
+        <p class="log-hint" id="auth-error" hidden></p>
         <button type="button" class="btn btn-google" id="google-signin-btn">
           Continue with Google
         </button>
-        <p class="field-help" id="google-auth-help">
-          Sign in with Google to save your log in a Log it folder on your Drive.
-        </p>
         <p class="field-help">
           <a href="privacy.html">Privacy</a>
         </p>
@@ -86,7 +46,7 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-calc3" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260907-google1" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline" id="user-tagline">Food · activity · weight</p>
@@ -136,42 +96,6 @@
       </div>
 
       <section class="log-panel" id="log-panel">
-        <div id="ai-setup" class="ai-onboard" hidden>
-          <h2 class="onboard-title">Connect AI to log meals &amp; workouts</h2>
-          <p class="onboard-lead">
-            Pick Grok, Claude, ChatGPT, or Gemini. Create a key on their site, then paste it here. You pay them directly. The key stays in this browser (and Drive if you signed in with Google).
-          </p>
-          <p class="field-label">1. Choose your AI</p>
-          <div id="onboard-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
-          <div class="setup-card">
-            <p class="setup-card-kicker">Card 1</p>
-            <h3 class="setup-card-title">Create a key</h3>
-            <ol class="setup-steps" id="onboard-key-steps"></ol>
-            <p class="field-help" id="onboard-key-help"></p>
-            <a
-              id="onboard-key-link"
-              class="btn btn-ghost onboard-link"
-              href="https://console.x.ai/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >Open key page</a>
-          </div>
-          <div class="setup-card">
-            <p class="setup-card-kicker">Card 2</p>
-            <h3 class="setup-card-title">Paste it here</h3>
-            <label class="field-label" for="onboard-api-key">API key</label>
-            <input
-              type="password"
-              id="onboard-api-key"
-              class="field-input"
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <button type="button" class="btn btn-primary" id="onboard-save-btn">Save &amp; start logging</button>
-            <p class="log-hint" id="onboard-hint" hidden></p>
-          </div>
-        </div>
-
         <div id="log-compose">
           <label class="log-label" id="log-label" for="log-input">Log food or activity</label>
           <div class="log-input-wrap">
@@ -372,9 +296,6 @@
           <button type="button" class="settings-nav-btn" data-settings-section="quick" role="tab" aria-selected="false">
             Quick actions
           </button>
-          <button type="button" class="settings-nav-btn" data-settings-section="ai" role="tab" aria-selected="false">
-            AI
-          </button>
           <button type="button" class="settings-nav-btn" data-settings-section="account" role="tab" aria-selected="false">
             Account
           </button>
@@ -487,54 +408,11 @@
           <p class="log-hint" id="qa-hint" hidden></p>
         </section>
 
-        <section class="settings-panel" data-settings-panel="ai" hidden>
-          <h2 class="settings-title">AI for logging</h2>
-          <p class="field-help">
-            Pick Grok, Claude, ChatGPT, or Gemini. Follow the two cards, then paste the key. Each AI keeps its own key. You pay that provider — Log it never sees a bill.
-          </p>
-          <p class="field-label">Choose your AI</p>
-          <div id="settings-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
-          <select id="provider-select" class="field-input" hidden aria-hidden="true" tabindex="-1"></select>
-
-          <div class="setup-card">
-            <p class="setup-card-kicker">Card 1</p>
-            <h3 class="setup-card-title">Create a key</h3>
-            <ol class="setup-steps" id="settings-key-steps"></ol>
-            <p class="field-help" id="settings-key-note"></p>
-            <a
-              id="settings-key-link"
-              class="btn btn-ghost onboard-link"
-              href="https://console.x.ai/"
-              target="_blank"
-              rel="noopener noreferrer"
-            >Open key page</a>
-          </div>
-
-          <div class="setup-card">
-            <p class="setup-card-kicker">Card 2</p>
-            <h3 class="setup-card-title">Paste it here</h3>
-            <label class="field-label" for="api-key">API key</label>
-            <input
-              type="password"
-              id="api-key"
-              class="field-input"
-              placeholder=""
-              autocomplete="off"
-              spellcheck="false"
-            />
-            <p class="field-help" id="api-key-help">Stored only in your account on this device.</p>
-            <label class="field-label" for="model-select">Model</label>
-            <select id="model-select" class="field-input"></select>
-            <button type="button" class="btn btn-primary" id="save-api-btn">Save AI settings</button>
-            <p class="log-hint" id="api-hint" hidden></p>
-          </div>
-        </section>
-
         <section class="settings-panel" data-settings-panel="account" hidden>
           <h2 class="settings-title">Account</h2>
           <p class="account-line">Signed in as <strong id="settings-username">—</strong></p>
           <p class="field-help" id="account-help">
-            Local accounts stay on this browser. Google accounts sync to a <strong>Log it</strong> folder in your Drive.
+            Signed in with Google. Your log syncs to a <strong>Log it</strong> folder on this Google Drive.
           </p>
 
           <div class="profile-block">
@@ -558,7 +436,7 @@
             <button type="button" class="btn btn-primary" id="save-profile-btn">Save profile</button>
             <p class="log-hint" id="profile-hint" hidden></p>
           </div>
-          <div id="drive-sync-box" class="sync-box" hidden>
+          <div id="drive-sync-box" class="sync-box">
             <p class="sync-line" id="drive-sync-status">Drive: not connected this session</p>
             <p class="drive-links" id="drive-links" hidden></p>
             <button type="button" class="btn btn-primary" id="drive-sync-btn">Sync now</button>
@@ -643,7 +521,17 @@
           });
           sid = cookie ? decodeURIComponent(cookie.slice("mmc-session=".length)) : "";
         }
-        if (sid) {
+        var account = null;
+        if (sid && auth && auth.accounts) {
+          var keys = Object.keys(auth.accounts);
+          for (var i = 0; i < keys.length; i += 1) {
+            if (auth.accounts[keys[i]] && auth.accounts[keys[i]].id === sid) {
+              account = auth.accounts[keys[i]];
+              break;
+            }
+          }
+        }
+        if (sid && account && account.provider === "google") {
           var authEl = document.getElementById("auth-screen");
           var appEl = document.getElementById("app-shell");
           if (authEl) authEl.hidden = true;
@@ -656,12 +544,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260907-calc3"></script>
-    <script src="js/storage.js?v=20260907-calc3"></script>
-    <script src="js/providers.js?v=20260907-calc3"></script>
-    <script src="js/auth.js?v=20260907-calc3"></script>
-    <script src="js/google.js?v=20260907-calc3"></script>
-    <script src="js/grok.js?v=20260907-calc3"></script>
-    <script src="js/app.js?v=20260907-calc3"></script>
+    <script src="js/config.js?v=20260907-google1"></script>
+    <script src="js/storage.js?v=20260907-google1"></script>
+    <script src="js/providers.js?v=20260907-google1"></script>
+    <script src="js/auth.js?v=20260907-google1"></script>
+    <script src="js/google.js?v=20260907-google1"></script>
+    <script src="js/grok.js?v=20260907-google1"></script>
+    <script src="js/app.js?v=20260907-google1"></script>
   </body>
 </html>

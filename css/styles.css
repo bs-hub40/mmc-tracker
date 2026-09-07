@@ -693,6 +693,22 @@ button {
   margin-bottom: 0;
 }
 
+.own-ai-key {
+  margin-top: 0.35rem;
+}
+
+.own-ai-key summary {
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 650;
+  color: var(--text);
+  padding: 0.45rem 0;
+}
+
+.own-ai-key .field-label {
+  margin-top: 0.65rem;
+}
+
 .provider-pick {
   border: 1px solid var(--border);
   background: var(--bg);
@@ -1459,6 +1475,7 @@ button {
 
 .btn-google {
   width: 100%;
+  margin-top: 0.35rem;
   background: #fff;
   color: #1f1f1f;
   border: 1px solid #dadce0;

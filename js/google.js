@@ -87,6 +87,7 @@ window.MMC = window.MMC || {};
         client_id: clientId,
         scope: SCOPES,
         include_granted_scopes: true,
+        enable_serial_consent: true,
         callback: () => {},
       });
     }
@@ -407,13 +408,19 @@ window.MMC = window.MMC || {};
     });
   }
 
-  window.MMC.googleSignIn = async function googleSignIn() {
-    if (!applyStoredToken() || !tokenHasVisibleDrive()) {
-      const prompt = localStorage.getItem(CONSENT_KEY) ? "" : "consent";
-      await requestToken(prompt);
-      if (!tokenHasVisibleDrive()) {
-        await requestToken("consent");
-      }
+  window.MMC.googleSignIn = async function googleSignIn(opts = {}) {
+    const forceConsent = Boolean(opts.forceConsent);
+    if (!forceConsent && applyStoredToken() && tokenHasVisibleDrive()) {
+      return fetchProfile();
+    }
+    await requestToken("consent");
+    if (!tokenHasVisibleDrive()) {
+      await requestToken("consent");
+    }
+    if (!tokenHasVisibleDrive()) {
+      throw new Error(
+        "Allow Drive on the Google screen so Log it can save your folder. Sign in again and leave Drive checked."
+      );
     }
     return fetchProfile();
   };

@@ -23,6 +23,10 @@ window.MMC = window.MMC || {};
     );
   }
 
+  function aiProxyUrl() {
+    return String(window.MMC.AI_PROXY_URL || "").trim().replace(/\/+$/, "");
+  }
+
   function validateKey(providerId, apiKey) {
     const cfg = providerConfig(providerId);
     if (!apiKey) {
@@ -33,6 +37,33 @@ window.MMC = window.MMC || {};
         `${cfg.label} API key should start with ${cfg.keyPrefix}`
       );
     }
+  }
+
+  async function callProxy({ task, text, context }) {
+    const base = aiProxyUrl();
+    if (!base) throw new Error("AI logging is not set up.");
+    const response = await fetch(`${base}/parse`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        task,
+        text: String(text || ""),
+        context: String(context || ""),
+      }),
+    });
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    if (!response.ok) {
+      throw new Error(payload?.error || `AI error (${response.status})`);
+    }
+    if (!payload || typeof payload !== "object") {
+      throw new Error("Empty response from AI");
+    }
+    return payload;
   }
 
   function resolveModel(providerId, model) {
@@ -156,15 +187,26 @@ window.MMC = window.MMC || {};
     return extractJson(content);
   }
 
-  async function callLlm({ provider, apiKey, model, system, user }) {
-    const providerId = provider || "xai";
+  async function callLlm(opts) {
+    const key = String(opts.apiKey || "").trim();
+    if (aiProxyUrl()) {
+      return callProxy({
+        task: opts.task,
+        text: opts.text,
+        context: opts.context,
+      });
+    }
+
+    const providerId = opts.provider || "xai";
     const cfg = providerConfig(providerId);
-    validateKey(providerId, apiKey);
-    const resolvedModel = resolveModel(providerId, model);
+    validateKey(providerId, key);
+    const resolvedModel = resolveModel(providerId, opts.model);
+    const system = opts.system;
+    const user = opts.user;
 
     if (providerId === "anthropic") {
       return callAnthropic({
-        apiKey,
+        apiKey: key,
         model: resolvedModel,
         system: `${system}\n\nReturn ONLY valid JSON. No markdown.`,
         user,
@@ -173,7 +215,7 @@ window.MMC = window.MMC || {};
 
     if (providerId === "gemini") {
       return callGemini({
-        apiKey,
+        apiKey: key,
         model: resolvedModel,
         system: `${system}\n\nReturn ONLY valid JSON. No markdown.`,
         user,
@@ -187,7 +229,7 @@ window.MMC = window.MMC || {};
 
     return callOpenAICompatible({
       endpoint,
-      apiKey,
+      apiKey: key,
       model: resolvedModel,
       system,
       user,
@@ -346,6 +388,9 @@ window.MMC = window.MMC || {};
       provider: opts.provider,
       apiKey: opts.apiKey,
       model: opts.model,
+      task: "meal",
+      text: opts.text,
+      context: opts.context,
       system: window.MMC.SYSTEM_PROMPT,
       user: withContext(opts.context, `Parse this meal into JSON macros:\n\n${opts.text}`),
     });
@@ -357,6 +402,9 @@ window.MMC = window.MMC || {};
       provider: opts.provider,
       apiKey: opts.apiKey,
       model: opts.model,
+      task: "activity",
+      text: opts.text,
+      context: opts.context,
       system: window.MMC.ACTIVITY_SYSTEM_PROMPT,
       user: withContext(
         opts.context,
@@ -371,6 +419,9 @@ window.MMC = window.MMC || {};
       provider: opts.provider,
       apiKey: opts.apiKey,
       model: opts.model,
+      task: "log",
+      text: opts.text,
+      context: opts.context,
       system: window.MMC.LOG_SYSTEM_PROMPT,
       user: withContext(
         opts.context,
