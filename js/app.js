@@ -584,8 +584,8 @@
     els.modeWeight.hidden = mode !== "weight";
     els.modeSettings.hidden = mode !== "settings";
 
-    // Daily tracker stays put on every tab except Settings
-    els.dailyTracker.hidden = mode === "settings";
+    // Streak + calorie balance stay on Nutrition and Activity only
+    els.dailyTracker.hidden = mode === "settings" || mode === "weight";
     updateLogVisibility();
 
     syncLogPanel();
