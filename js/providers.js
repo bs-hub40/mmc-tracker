@@ -7,6 +7,8 @@ Object.assign(window.MMC, {
       label: "Grok (xAI)",
       keyHint: "Starts with xai-",
       keyPrefix: "xai-",
+      keyUrl: "https://console.x.ai/",
+      keyUrlLabel: "console.x.ai",
       defaultModel: "grok-4.6",
       models: [
         { id: "grok-4.6", label: "grok-4.6 (recommended)" },
@@ -20,6 +22,8 @@ Object.assign(window.MMC, {
       label: "ChatGPT (OpenAI)",
       keyHint: "Starts with sk-",
       keyPrefix: "sk-",
+      keyUrl: "https://platform.openai.com/api-keys",
+      keyUrlLabel: "platform.openai.com",
       defaultModel: "gpt-5.6-terra",
       models: [
         { id: "gpt-5.6-sol", label: "gpt-5.6-sol (flagship)" },
@@ -34,6 +38,8 @@ Object.assign(window.MMC, {
       label: "Claude (Anthropic)",
       keyHint: "Starts with sk-ant-",
       keyPrefix: "sk-ant-",
+      keyUrl: "https://console.anthropic.com/settings/keys",
+      keyUrlLabel: "console.anthropic.com",
       defaultModel: "claude-sonnet-5",
       models: [
         { id: "claude-sonnet-5", label: "claude-sonnet-5 (recommended)" },

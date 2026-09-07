@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260907-bootfix" />
+    <link rel="stylesheet" href="css/styles.css?v=20260907-onboard" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -141,23 +141,46 @@
       </div>
 
       <section class="log-panel" id="log-panel">
-        <div id="ai-setup" class="setup-banner" hidden>
-          <div>
-            <strong>Connect AI to log</strong>
-            <p>Add an API key once — then describe meals or workouts in plain English.</p>
+        <div id="ai-setup" class="ai-onboard" hidden>
+          <h2 class="onboard-title">Connect AI to log meals &amp; workouts</h2>
+          <p class="onboard-lead">
+            Use your own key. You pay the provider directly. The key stays in this browser (and Drive if you signed in with Google).
+          </p>
+          <p class="field-label">1. Choose a provider</p>
+          <div id="onboard-providers" class="provider-picks" role="radiogroup" aria-label="AI provider"></div>
+          <p class="field-label">2. Create a key</p>
+          <a
+            id="onboard-key-link"
+            class="btn btn-ghost onboard-link"
+            href="https://console.x.ai/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Open key page</a>
+          <p class="field-help" id="onboard-key-help"></p>
+          <label class="field-label" for="onboard-api-key">3. Paste the key</label>
+          <input
+            type="password"
+            id="onboard-api-key"
+            class="field-input"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" class="btn btn-primary" id="onboard-save-btn">Save &amp; start logging</button>
+          <p class="log-hint" id="onboard-hint" hidden></p>
+        </div>
+
+        <div id="log-compose">
+          <label class="log-label" id="log-label" for="log-input">Log with AI</label>
+          <textarea id="log-input" rows="3" placeholder=""></textarea>
+          <div class="log-actions">
+            <button type="button" class="btn btn-primary" id="log-btn">
+              <span class="btn-text">Parse &amp; Log</span>
+              <span class="btn-spinner" hidden aria-hidden="true"></span>
+            </button>
           </div>
-          <button type="button" class="btn btn-ghost btn-sm" id="ai-setup-btn">Settings</button>
+          <div id="quick-actions" class="quick-actions" hidden></div>
+          <p class="log-hint" id="log-hint" hidden></p>
         </div>
-        <label class="log-label" id="log-label" for="log-input">Log with AI</label>
-        <textarea id="log-input" rows="3" placeholder=""></textarea>
-        <div class="log-actions">
-          <button type="button" class="btn btn-primary" id="log-btn">
-            <span class="btn-text">Parse &amp; Log</span>
-            <span class="btn-spinner" hidden aria-hidden="true"></span>
-          </button>
-        </div>
-        <div id="quick-actions" class="quick-actions" hidden></div>
-        <p class="log-hint" id="log-hint" hidden></p>
       </section>
 
       <button type="button" class="log-jump" id="log-jump-btn" hidden>＋ Log food with AI</button>
@@ -344,6 +367,9 @@
             spellcheck="false"
           />
           <p class="field-help" id="api-key-help">Stored only in your account on this device.</p>
+          <p class="field-help">
+            <a id="settings-key-link" href="https://console.x.ai/" target="_blank" rel="noopener noreferrer">Get a Grok (xAI) API key</a>
+          </p>
           <button type="button" class="btn btn-primary" id="save-api-btn">Save AI settings</button>
           <p class="log-hint" id="api-hint" hidden></p>
         </section>
@@ -397,12 +423,12 @@
       </div>
     </div>
 
-    <script src="js/config.js?v=20260907-bootfix"></script>
-    <script src="js/storage.js?v=20260907-bootfix"></script>
-    <script src="js/providers.js?v=20260907-bootfix"></script>
-    <script src="js/auth.js?v=20260907-bootfix"></script>
-    <script src="js/google.js?v=20260907-bootfix"></script>
-    <script src="js/grok.js?v=20260907-bootfix"></script>
-    <script src="js/app.js?v=20260907-bootfix"></script>
+    <script src="js/config.js?v=20260907-onboard"></script>
+    <script src="js/storage.js?v=20260907-onboard"></script>
+    <script src="js/providers.js?v=20260907-onboard"></script>
+    <script src="js/auth.js?v=20260907-onboard"></script>
+    <script src="js/google.js?v=20260907-onboard"></script>
+    <script src="js/grok.js?v=20260907-onboard"></script>
+    <script src="js/app.js?v=20260907-onboard"></script>
   </body>
 </html>

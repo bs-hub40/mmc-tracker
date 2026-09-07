@@ -112,13 +112,16 @@
     modeWeight: document.getElementById("mode-weight"),
     modeSettings: document.getElementById("mode-settings"),
     logPanel: document.getElementById("log-panel"),
+    logCompose: document.getElementById("log-compose"),
     logJumpBtn: document.getElementById("log-jump-btn"),
     quickActions: document.getElementById("quick-actions"),
-    qaEditor: document.getElementById("qa-editor"),
-    saveQaBtn: document.getElementById("save-qa-btn"),
-    qaHint: document.getElementById("qa-hint"),
     aiSetup: document.getElementById("ai-setup"),
-    aiSetupBtn: document.getElementById("ai-setup-btn"),
+    onboardProviders: document.getElementById("onboard-providers"),
+    onboardKeyLink: document.getElementById("onboard-key-link"),
+    onboardKeyHelp: document.getElementById("onboard-key-help"),
+    onboardApiKey: document.getElementById("onboard-api-key"),
+    onboardSaveBtn: document.getElementById("onboard-save-btn"),
+    onboardHint: document.getElementById("onboard-hint"),
     toast: document.getElementById("toast"),
     weightInput: document.getElementById("weight-input"),
     weightUnit: document.getElementById("weight-unit"),
@@ -146,6 +149,10 @@
     modelSelect: document.getElementById("model-select"),
     saveApiBtn: document.getElementById("save-api-btn"),
     apiHint: document.getElementById("api-hint"),
+    settingsKeyLink: document.getElementById("settings-key-link"),
+    qaEditor: document.getElementById("qa-editor"),
+    saveQaBtn: document.getElementById("save-qa-btn"),
+    qaHint: document.getElementById("qa-hint"),
     settingsUsername: document.getElementById("settings-username"),
     accountHelp: document.getElementById("account-help"),
     driveSyncBox: document.getElementById("drive-sync-box"),
@@ -168,6 +175,7 @@
   let editTarget = null;
   let toastTimer = null;
   let logBusy = false;
+  let onboardProvider = "xai";
 
   function targets() {
     return getTargets(state);
@@ -228,6 +236,7 @@
     if (!els.aiSetup) return;
     const ready = hasAiKey();
     els.aiSetup.hidden = ready;
+    if (els.logCompose) els.logCompose.hidden = !ready;
     if (currentMode === "nutrition" || currentMode === "activity") {
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
@@ -235,6 +244,57 @@
         btn.disabled = logBusy || !ready;
       });
     }
+    if (!ready) renderOnboard();
+  }
+
+  function renderOnboard() {
+    if (!els.onboardProviders || !state) return;
+    onboardProvider = normalizeProvider(onboardProvider || state.provider || "xai");
+    els.onboardProviders.innerHTML = Object.values(AI_PROVIDERS)
+      .map((p) => {
+        const rec = p.id === "xai" ? " · easy start" : "";
+        const active = p.id === onboardProvider ? " active" : "";
+        return `<button type="button" class="provider-pick${active}" data-onboard-provider="${p.id}" role="radio" aria-checked="${p.id === onboardProvider}">${p.label}${rec}</button>`;
+      })
+      .join("");
+    syncOnboardProviderUi();
+  }
+
+  function syncOnboardProviderUi() {
+    const cfg = AI_PROVIDERS[normalizeProvider(onboardProvider)];
+    if (!cfg) return;
+    if (els.onboardKeyLink) {
+      els.onboardKeyLink.href = cfg.keyUrl;
+      els.onboardKeyLink.textContent = `Open ${cfg.label} key page`;
+    }
+    if (els.onboardKeyHelp) {
+      els.onboardKeyHelp.innerHTML = `Create an API key at <strong>${cfg.keyUrlLabel}</strong>. ${cfg.keyHint}. You may need to add a little prepaid credit.`;
+    }
+    if (els.onboardApiKey) els.onboardApiKey.placeholder = cfg.keyHint;
+  }
+
+  function saveOnboardApi() {
+    const provider = normalizeProvider(onboardProvider);
+    const cfg = AI_PROVIDERS[provider];
+    const key = (els.onboardApiKey?.value || "").trim();
+    if (!key) {
+      setHint(els.onboardHint, "Paste your API key first.");
+      return;
+    }
+    if (cfg.keyPrefix && !key.startsWith(cfg.keyPrefix)) {
+      setHint(els.onboardHint, `That doesn’t look like a ${cfg.label} key. ${cfg.keyHint}.`);
+      return;
+    }
+    state.provider = provider;
+    state.model = normalizeModel(cfg.defaultModel, provider);
+    setActiveApiKey(state, key);
+    persist();
+    if (els.onboardApiKey) els.onboardApiKey.value = "";
+    fillSettingsForm();
+    syncAiGate();
+    renderQuickActions();
+    showToast(`${cfg.label} connected. You can log now.`, true);
+    els.logInput?.focus();
   }
 
   function setBusy(busy) {
@@ -421,6 +481,10 @@
     const cfg = AI_PROVIDERS[provider];
     els.apiKey.placeholder = cfg.keyHint;
     els.apiKeyHelp.innerHTML = `For <strong>${cfg.label}</strong>. ${cfg.keyHint}. Stored only on this device.`;
+    if (els.settingsKeyLink) {
+      els.settingsKeyLink.href = cfg.keyUrl;
+      els.settingsKeyLink.textContent = `Get a ${cfg.label} API key`;
+    }
     const keys = state.apiKeys || {};
     els.apiKey.value = keys[provider] || (provider === "xai" ? state.apiKey || "" : "");
   }
@@ -1449,6 +1513,7 @@
     setActiveApiKey(state, key);
     persist();
     syncAiGate();
+    fillSettingsForm();
     setHint(
       els.apiHint,
       key
@@ -1490,7 +1555,6 @@
     });
 
     els.settingsBtn?.addEventListener("click", () => setMode("settings"));
-    els.aiSetupBtn?.addEventListener("click", () => setMode("settings"));
     els.logJumpBtn?.addEventListener("click", () => {
       setView("today");
       updateLogVisibility();
@@ -1507,6 +1571,21 @@
         setHint(els.qaHint, "");
         renderQaEditor();
       });
+    });
+
+    els.onboardProviders?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-onboard-provider]");
+      if (!btn) return;
+      onboardProvider = btn.getAttribute("data-onboard-provider");
+      renderOnboard();
+      setHint(els.onboardHint, "");
+    });
+    els.onboardSaveBtn?.addEventListener("click", saveOnboardApi);
+    els.onboardApiKey?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        saveOnboardApi();
+      }
     });
 
     els.saveQaBtn?.addEventListener("click", saveQuickActions);
