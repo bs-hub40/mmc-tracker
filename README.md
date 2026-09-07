@@ -26,14 +26,14 @@ Mobile-first dark-mode web app for daily pro-metabolic nutrition and activity tr
 4. Create **Credentials → OAuth client ID → Web application**.
 5. Add authorized JavaScript origins, for example:
    - `http://localhost:5500`
-   - `https://YOURUSER.github.io`
+   - `https://bs-hub40.github.io`
 6. Copy the client ID into **Settings → Google OAuth Client ID**, or into `js/config.js` (`GOOGLE_CLIENT_ID`) before you host.
 
 Users then tap **Continue with Google**. MMC Tracker stores `mmc-tracker.json` in that Google account’s private app folder.
 
 ## Host on GitHub Pages
 
-Push this repo to GitHub and enable Pages (Actions workflow `.github/workflows/pages.yml`). Phone URL will look like `https://YOURUSER.github.io/mmc-tracker/`.
+Live app: `https://bs-hub40.github.io/mmc-tracker/`
 
 ## Run
 
