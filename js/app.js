@@ -53,6 +53,8 @@
     scheduleDrivePush,
     flushDrivePush,
     mergeDriveState,
+    stateHasUserData,
+    stateHasLogs,
   } = window.MMC;
 
   const LOG_COPY = {
@@ -106,6 +108,8 @@
   let qaEditType = "nutrition";
   let settingsSection = "goals";
   let qaBusyIndex = -1;
+  let driveSyncing = false;
+  let lastDrivePullAt = 0;
 
   const els = {
     authScreen: document.getElementById("auth-screen"),
@@ -266,7 +270,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Streak and remaining calories stay up top while you log. Tap a meal later to edit or save it as a shortcut.",
+      body: "Streak and remaining calories stay up top while you log. If you burn calories, a line on the bars marks your daily goal — past it is extra from activity, at the same macro ratio.",
       target: "#daily-tracker",
     },
     {
@@ -739,38 +743,44 @@
       : "Drive: connected";
   }
 
-  async function syncFromDrive() {
+  async function syncFromDrive(opts = {}) {
     if (session?.provider !== "google") return;
+    if (driveSyncing) return;
+    const quiet = Boolean(opts.quiet);
+    const interactive = Boolean(opts.interactive);
+    driveSyncing = true;
     try {
-      const restored = await googleRestoreToken();
+      const restored = await googleRestoreToken(interactive);
       if (!restored) {
         renderDriveStatus();
         return;
       }
       const remote = await drivePull();
+      lastDrivePullAt = Date.now();
       if (!remote) {
-        await drivePush(state);
+        if (stateHasUserData(state)) {
+          await drivePush(state, { skipPull: true });
+        }
         renderDriveStatus();
         return;
       }
 
-      const localTs = Number(state.updatedAt) || 0;
-      const remoteTs = Number(remote.updatedAt) || 0;
-      if (remoteTs >= localTs) {
-        state = remote;
-        saveState(state);
-        renderAll();
-      } else {
-        state = mergeDriveState(state, remote);
-        saveState(state);
-        renderAll();
-        await drivePush(state);
+      const localSparse = !stateHasUserData(state);
+      state = localSparse ? remote : mergeDriveState(state, remote);
+      saveState(state);
+      renderAll();
+      if (!localSparse) {
+        await drivePush(state, { skipPull: true });
       }
       renderDriveStatus();
     } catch (err) {
-      setHint(els.driveSyncHint, err.message || "Drive sync failed.");
+      if (!quiet) setHint(els.driveSyncHint, err.message || "Drive sync failed.");
       renderDriveStatus();
+      if (!stateHasUserData(state)) {
+        showToast(err.message || "Couldn't load your log from Drive. Try Sync now in Settings.", false);
+      }
     } finally {
+      driveSyncing = false;
       maybeStartProfileSetup();
     }
   }
@@ -799,11 +809,7 @@
     setHint(els.driveSyncHint, "");
     els.driveSyncBtn.disabled = true;
     try {
-      const ok = await googleRestoreToken(true);
-      if (!ok) {
-        await googleSignIn({ forceConsent: true });
-      }
-      await syncFromDrive();
+      await syncFromDrive({ interactive: true });
       setHint(els.driveSyncHint, "Pulled latest from Google Drive.", true);
     } catch (err) {
       setHint(els.driveSyncHint, err.message || "Drive sync failed.");
@@ -1312,16 +1318,52 @@
     els.streakBest.textContent = `Best ${best}`;
   }
 
+  function budgetBar({ value, base, extended, fillClass, showMark }) {
+    const scale = Math.max(Number(extended) || 0, 0.0001);
+    const markPct = Math.max(0, Math.min(100, (Number(base) / scale) * 100));
+    const clamped = Math.max(0, Math.min(Number(value) || 0, scale));
+    const baseFill = Math.min(clamped, Math.max(0, Number(base) || 0));
+    const bonusFill = Math.max(0, clamped - baseFill);
+    const basePct = (baseFill / scale) * 100;
+    const bonusPct = (bonusFill / scale) * 100;
+    const over = (Number(value) || 0) > scale + 0.05;
+    const zonePct = Math.max(0, 100 - markPct);
+    return `
+      <div class="budget-track${showMark ? " has-burn" : ""}${over ? " is-over" : ""}" aria-hidden="true">
+        <div class="budget-well">
+          ${showMark ? `<div class="budget-zone" style="left:${markPct}%;width:${zonePct}%"></div>` : ""}
+          <div class="${fillClass}" style="width:${basePct.toFixed(2)}%"></div>
+          ${
+            bonusPct > 0.15
+              ? `<div class="${fillClass} budget-fill-bonus" style="left:${basePct.toFixed(2)}%;width:${bonusPct.toFixed(2)}%"></div>`
+              : ""
+          }
+        </div>
+        ${showMark ? `<div class="budget-mark" style="left:${markPct.toFixed(2)}%"></div>` : ""}
+      </div>
+    `;
+  }
+
   function renderEnergy() {
     const energy = dayEnergy(today(), state);
     const t = energy.targets;
     const remaining = energy.remaining;
+    const foodKcal = energy.food.calories;
+    const burned = energy.burned;
+    const bonus = energy.bonus || window.MMC.burnBonus(t, burned);
+    const intoBurn = burned > 0 && foodKcal > t.calories && remaining >= 0;
     let remClass = "";
     if (remaining < 0) remClass = "over";
+    else if (intoBurn) remClass = "into-burn";
     else if (Math.abs(remaining) <= t.calories * 0.1) remClass = "on-track";
 
     const amount = round1(Math.abs(remaining));
-    const status = remaining >= 0 ? "left today" : "over goal";
+    let status = "left today";
+    if (remaining < 0) status = burned > 0 ? "over budget" : "over goal";
+    else if (intoBurn) status = "of burn left";
+
+    const showMark = burned > 0;
+    const budget = bonus.extended.calories;
 
     els.energyCard.innerHTML = `
       <div class="energy-hero">
@@ -1329,11 +1371,27 @@
           <div class="energy-hero-value ${remClass}">${amount}</div>
           <div class="energy-hero-label">${status}</div>
         </div>
-        <div class="energy-hero-meta">Goal ${t.calories} kcal</div>
+        <div class="energy-hero-meta">
+          Goal ${t.calories} kcal
+          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity</div>` : ""}
+        </div>
+      </div>
+      <div class="energy-budget">
+        ${budgetBar({
+          value: foodKcal,
+          base: t.calories,
+          extended: budget,
+          fillClass: "macro-fill calories",
+          showMark,
+        })}
+        <div class="energy-budget-values">
+          <span>${round1(foodKcal)} eaten</span>
+          <span>${showMark ? `goal ${t.calories} · budget ${round1(budget)}` : `of ${t.calories}`}</span>
+        </div>
       </div>
       <div class="energy-strip">
-        <span>Food<strong>${round1(energy.food.calories)}</strong></span>
-        <span class="burn">Burned<strong>${round1(energy.burned)}</strong></span>
+        <span>Food<strong>${round1(foodKcal)}</strong></span>
+        <span class="burn">Burned<strong>${round1(burned)}</strong></span>
         <span>Net<strong>${round1(energy.netCalories)}</strong></span>
       </div>
     `;
@@ -1342,16 +1400,22 @@
   function renderMacros() {
     const energy = dayEnergy(today(), state);
     const totals = energy.food;
+    const burned = energy.burned;
+    const bonus = energy.bonus || window.MMC.burnBonus(energy.targets, burned);
+    const showMark = burned > 0;
 
-    els.macros.innerHTML = macroMeta()
+    const rows = macroMeta()
       .map((meta) => {
         const value = totals[meta.key];
-        const pct = Math.min(100, (value / meta.target) * 100);
+        const scalesWithBurn = meta.key !== "fiber";
+        const base = meta.target;
+        const extended = scalesWithBurn ? bonus.extended[meta.key] : base;
+        const markThis = showMark && scalesWithBurn;
         let rowClass = "macro-row";
         let fillClass = `macro-fill ${meta.key}`;
 
         if (meta.key === "fat") {
-          const ratio = value / meta.target;
+          const ratio = value / Math.max(extended, 0.0001);
           if (ratio >= 1) {
             rowClass += " fat-over";
             fillClass += " over";
@@ -1361,24 +1425,35 @@
           }
         }
 
+        const shownTarget = markThis ? extended : base;
         const targetLabel =
           meta.mode === "minimum"
-            ? `>${meta.target}`
+            ? `>${shownTarget}`
             : meta.mode === "ceiling"
-              ? `≤${meta.target}`
-              : String(meta.target);
+              ? `≤${shownTarget}`
+              : String(shownTarget);
 
         return `
           <div class="${rowClass}">
             <div class="macro-name">${meta.label}</div>
-            <div class="macro-track" aria-hidden="true">
-              <div class="${fillClass}" style="width:${pct}%"></div>
-            </div>
+            ${budgetBar({
+              value,
+              base,
+              extended,
+              fillClass,
+              showMark: markThis,
+            })}
             <div class="macro-values">${round1(value)} <span>/ ${targetLabel} ${meta.unit}</span></div>
           </div>
         `;
       })
       .join("");
+
+    const legend = showMark
+      ? `<p class="budget-legend">The line is your daily goal. Past it uses calories you burned, at the same macro ratio.</p>`
+      : "";
+
+    els.macros.innerHTML = rows + legend;
   }
 
   function renderMeals() {
@@ -2516,12 +2591,18 @@
     paintTourStep();
   }
 
-  function maybeStartTour() {
+  function maybeStartTour(opts = {}) {
     if (!state || !session) return;
     if (els.appShell?.hidden) return;
     if (els.profileOnboard && !els.profileOnboard.hidden) return;
-    if (sanitizeProfile(state.profile).tourDone) return;
+    const profile = sanitizeProfile(state.profile);
+    if (profile.tourDone) return;
     if (tourIsOpen()) return;
+    if (stateHasLogs(state) || (profile.setupDone && !opts.afterSetup)) {
+      state.profile = sanitizeProfile({ ...profile, tourDone: true });
+      persist();
+      return;
+    }
     startTour();
   }
 
@@ -2542,7 +2623,7 @@
     paintProfileForm();
     renderAll();
     closeProfileSetup();
-    maybeStartTour();
+    maybeStartTour({ afterSetup: true });
   }
 
   function advanceSetup() {
@@ -2928,7 +3009,19 @@
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         window.MMC.flushDrivePush?.(true);
+        return;
       }
+      if (session?.provider === "google" && Date.now() - lastDrivePullAt > 8000) {
+        syncFromDrive({ quiet: true });
+      }
+    });
+    window.addEventListener("focus", () => {
+      if (session?.provider === "google" && Date.now() - lastDrivePullAt > 8000) {
+        syncFromDrive({ quiet: true });
+      }
+    });
+    window.addEventListener("online", () => {
+      if (session?.provider === "google") syncFromDrive({ quiet: true });
     });
     window.addEventListener("pagehide", () => {
       window.MMC.flushDrivePush?.(true);

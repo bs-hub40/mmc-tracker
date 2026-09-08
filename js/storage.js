@@ -319,7 +319,7 @@ Rules:
       },
       goals: { ...window.MMC.DEFAULT_TARGETS },
       quickActions: window.MMC.defaultQuickActions(),
-      updatedAt: Date.now(),
+      updatedAt: 0,
       history: {
         [today]: window.MMC.emptyDay(),
       },
@@ -350,6 +350,102 @@ Rules:
       map.set(item.id || `anon-${i}-${item.loggedAt || 0}`, item);
     });
     return [...map.values()];
+  },
+
+  stateHasLogs(state) {
+    return Object.values(state?.history || {}).some(
+      (day) => (day?.meals || []).length > 0 || (day?.activities || []).length > 0
+    );
+  },
+
+  stateHasUserData(state) {
+    if (!state) return false;
+    if (window.MMC.stateHasLogs(state)) return true;
+    if ((state.weights || []).length > 0) return true;
+    if (state.goalWeight) return true;
+    const profile = window.MMC.sanitizeProfile(state.profile);
+    if (
+      profile.setupDone ||
+      profile.tourDone ||
+      profile.age ||
+      profile.sex ||
+      profile.heightIn ||
+      profile.bodyFat ||
+      profile.activityPal ||
+      profile.strategy
+    ) {
+      return true;
+    }
+    const qa = window.MMC.sanitizeQuickActions(state.quickActions);
+    if (
+      [...(qa.nutrition || []), ...(qa.activity || [])].some(
+        (slot) => slot?.parsed || slot?.label || slot?.prompt
+      )
+    ) {
+      return true;
+    }
+    const goals = window.MMC.getTargets(state);
+    const defaults = window.MMC.DEFAULT_TARGETS;
+    return (
+      goals.calories !== defaults.calories ||
+      goals.protein !== defaults.protein ||
+      goals.fat !== defaults.fat ||
+      goals.carbs !== defaults.carbs ||
+      goals.fiber !== defaults.fiber
+    );
+  },
+
+  stateDataScore(state) {
+    if (!state) return 0;
+    let score = 0;
+    Object.values(state.history || {}).forEach((day) => {
+      score += (day?.meals || []).length * 4;
+      score += (day?.activities || []).length * 4;
+    });
+    score += (state.weights || []).length;
+    const profile = window.MMC.sanitizeProfile(state.profile);
+    if (profile.setupDone) score += 6;
+    if (profile.tourDone) score += 6;
+    if (profile.age) score += 1;
+    if (profile.sex) score += 1;
+    if (profile.heightIn) score += 1;
+    if (profile.strategy) score += 1;
+    const qa = window.MMC.sanitizeQuickActions(state.quickActions);
+    [...(qa.nutrition || []), ...(qa.activity || [])].forEach((slot) => {
+      if (slot?.parsed) score += 2;
+    });
+    if (window.MMC.stateHasUserData(state)) score += 1;
+    return score;
+  },
+
+  mergeProfiles(a, b) {
+    const left = window.MMC.sanitizeProfile(a);
+    const right = window.MMC.sanitizeProfile(b);
+    return window.MMC.sanitizeProfile({
+      age: left.age ?? right.age,
+      sex: left.sex || right.sex,
+      setupDone: Boolean(left.setupDone || right.setupDone),
+      tourDone: Boolean(left.tourDone || right.tourDone),
+      heightIn: left.heightIn ?? right.heightIn,
+      heightUnit: left.heightUnit || right.heightUnit,
+      bodyFat: left.bodyFat ?? right.bodyFat,
+      activityPal: left.activityPal ?? right.activityPal,
+      strategy: left.strategy || right.strategy,
+    });
+  },
+
+  mergeQuickActionLists(a, b) {
+    const left = Array.isArray(a) ? a : [];
+    const right = Array.isArray(b) ? b : [];
+    return [0, 1, 2].map((i) => {
+      const l = left[i] || {};
+      const r = right[i] || {};
+      const lFilled = Boolean(l.parsed || l.label || l.prompt);
+      const rFilled = Boolean(r.parsed || r.label || r.prompt);
+      if (lFilled && !rFilled) return l;
+      if (rFilled && !lFilled) return r;
+      return lFilled ? l : r;
+    });
   },
 
   mergeWeights(a, b) {
@@ -386,23 +482,35 @@ Rules:
     });
     const localTs = Number(localState.updatedAt) || 0;
     const remoteTs = Number(remoteState.updatedAt) || 0;
-    const newer = remoteTs >= localTs ? remoteState : localState;
-    const older = newer === remoteState ? localState : remoteState;
+    const localRich = window.MMC.stateHasUserData(localState);
+    const remoteRich = window.MMC.stateHasUserData(remoteState);
+    let primary;
+    let secondary;
+    if (localRich !== remoteRich) {
+      primary = localRich ? localState : remoteState;
+      secondary = localRich ? remoteState : localState;
+    } else {
+      primary = remoteTs >= localTs ? remoteState : localState;
+      secondary = primary === remoteState ? localState : remoteState;
+    }
+    const localQa = window.MMC.sanitizeQuickActions(localState.quickActions);
+    const remoteQa = window.MMC.sanitizeQuickActions(remoteState.quickActions);
     return window.MMC.hydrateState({
-      ...newer,
+      ...primary,
       history,
       weights: window.MMC.mergeWeights(localState.weights, remoteState.weights),
-      apiKeys: { ...(older.apiKeys || {}), ...(newer.apiKeys || {}) },
-      apiKey: newer.apiKey || older.apiKey || "",
-      theme: window.MMC.sanitizeTheme(newer.theme || older.theme),
+      apiKeys: { ...(secondary.apiKeys || {}), ...(primary.apiKeys || {}) },
+      apiKey: primary.apiKey || secondary.apiKey || "",
+      theme: window.MMC.sanitizeTheme(primary.theme || secondary.theme),
       goalWeight:
-        newer.goalWeight !== undefined
-          ? window.MMC.sanitizeGoalWeight(newer.goalWeight)
-          : window.MMC.sanitizeGoalWeight(older.goalWeight),
-      profile: window.MMC.sanitizeProfile({
-        ...(older.profile || {}),
-        ...(newer.profile || {}),
-      }),
+        window.MMC.sanitizeGoalWeight(primary.goalWeight) ||
+        window.MMC.sanitizeGoalWeight(secondary.goalWeight),
+      goals: primary.goals || secondary.goals,
+      quickActions: {
+        nutrition: window.MMC.mergeQuickActionLists(localQa.nutrition, remoteQa.nutrition),
+        activity: window.MMC.mergeQuickActionLists(localQa.activity, remoteQa.activity),
+      },
+      profile: window.MMC.mergeProfiles(localState.profile, remoteState.profile),
       updatedAt: Math.max(localTs, remoteTs),
     });
   },
@@ -862,6 +970,35 @@ Rules:
     }, 0);
   },
 
+  // Extra calories from activity keep the same protein / fat / carb split as the daily goal.
+  burnBonus(targets, burned) {
+    const t = targets || window.MMC.DEFAULT_TARGETS;
+    const burn = Math.max(0, Number(burned) || 0);
+    const calories = Math.max(0, Number(t.calories) || 0);
+    const ratio = calories > 0 && burn > 0 ? burn / calories : 0;
+    const scale = (grams) => Math.round((Number(grams) || 0) * (1 + ratio));
+    const protein = scale(t.protein);
+    const fat = scale(t.fat);
+    const carbs = scale(t.carbs);
+    return {
+      burned: window.MMC.round1(burn),
+      ratio,
+      extra: {
+        calories: window.MMC.round1(burn),
+        protein: protein - (Number(t.protein) || 0),
+        fat: fat - (Number(t.fat) || 0),
+        carbs: carbs - (Number(t.carbs) || 0),
+      },
+      extended: {
+        calories: window.MMC.round1(calories + burn),
+        protein,
+        fat,
+        carbs,
+        fiber: Number(t.fiber) || 0,
+      },
+    };
+  },
+
   dayEnergy(day, state) {
     const targets = window.MMC.getTargets(state);
     const food = window.MMC.mealTotals(day.meals);
@@ -869,12 +1006,14 @@ Rules:
     const netCalories = Math.max(0, food.calories - burned);
     const remaining = targets.calories - netCalories;
     const budget = targets.calories + burned;
+    const bonus = window.MMC.burnBonus(targets, burned);
     return {
       food,
       burned,
       netCalories,
       remaining,
       budget,
+      bonus,
       targets,
       macros: {
         ...food,

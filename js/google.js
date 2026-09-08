@@ -23,6 +23,7 @@ window.MMC = window.MMC || {};
   let lastSyncAt = 0;
   let lastSyncError = "";
   let grantedScopes = "";
+  let pendingPayload = null;
 
   function getClientId() {
     const fromSettings = (localStorage.getItem(window.MMC.GOOGLE_CLIENT_ID_KEY) || "").trim();
@@ -250,18 +251,24 @@ window.MMC = window.MMC || {};
     return text ? JSON.parse(text) : null;
   }
 
-  async function findNamedFile({ name, mimeType, parentId, spaces }) {
+  async function listNamedFiles({ name, mimeType, parentId, spaces }) {
     const clauses = [`name='${name.replace(/'/g, "\\'")}'`, "trashed=false"];
     if (mimeType) clauses.push(`mimeType='${mimeType}'`);
     if (parentId) clauses.push(`'${parentId}' in parents`);
     const params = new URLSearchParams({
       q: clauses.join(" and "),
-      fields: "files(id,name,webViewLink)",
-      pageSize: "10",
+      fields: "files(id,name,webViewLink,modifiedTime,parents)",
+      pageSize: "20",
+      orderBy: "modifiedTime desc",
     });
     if (spaces) params.set("spaces", spaces);
     const data = await driveJson(`https://www.googleapis.com/drive/v3/files?${params}`);
-    return data?.files?.[0] || null;
+    return Array.isArray(data?.files) ? data.files : [];
+  }
+
+  async function findNamedFile(opts) {
+    const files = await listNamedFiles(opts);
+    return files[0] || null;
   }
 
   async function ensureVisibleFolder() {
@@ -368,23 +375,45 @@ window.MMC = window.MMC || {};
     fileUrl = created?.webViewLink || fileLink(fileId);
   }
 
+  function rememberBackupFile(meta) {
+    if (!meta?.id) return;
+    fileId = meta.id;
+    fileUrl = meta.webViewLink || fileLink(meta.id);
+    if (Array.isArray(meta.parents) && meta.parents[0]) {
+      folderId = meta.parents[0];
+      folderUrl = folderUrl || folderLink(folderId);
+    }
+  }
+
   async function downloadDriveState() {
-    const visibleMeta = await findVisibleBackup().catch(() => null);
+    const visibleFiles = await listNamedFiles({ name: FILE_NAME() }).catch(() => []);
     const hiddenMeta = await findAppDataBackup().catch(() => null);
+    const metas = [...visibleFiles];
+    if (hiddenMeta?.id && !metas.some((f) => f.id === hiddenMeta.id)) {
+      metas.push(hiddenMeta);
+    }
+
     const parts = [];
+    let canonical = null;
+    let canonicalScore = -1;
 
-    if (visibleMeta?.id) {
-      fileId = visibleMeta.id;
-      fileUrl = visibleMeta.webViewLink || fileLink(visibleMeta.id);
-      const data = await downloadById(visibleMeta.id);
-      if (data) parts.push(window.MMC.hydrateState(data));
+    for (const meta of metas) {
+      if (!meta?.id) continue;
+      const data = await downloadById(meta.id);
+      if (!data) continue;
+      const hydrated = window.MMC.hydrateState(data);
+      parts.push(hydrated);
+      const score = window.MMC.stateDataScore(hydrated);
+      const older =
+        !canonical ||
+        String(meta.modifiedTime || "") < String(canonical.modifiedTime || "9999");
+      if (score > canonicalScore || (score === canonicalScore && older)) {
+        canonical = meta;
+        canonicalScore = score;
+      }
     }
 
-    if (hiddenMeta?.id && hiddenMeta.id !== visibleMeta?.id) {
-      const data = await downloadById(hiddenMeta.id);
-      if (data) parts.push(window.MMC.hydrateState(data));
-    }
-
+    if (canonical) rememberBackupFile(canonical);
     if (!parts.length) return null;
     return parts.reduce((acc, cur) => window.MMC.mergeTrackerState(acc, cur));
   }
@@ -392,16 +421,21 @@ window.MMC = window.MMC || {};
   async function uploadDriveState(state) {
     const name = FILE_NAME();
     const body = JSON.stringify(state);
-    const parent = await ensureVisibleFolder();
-    if (!parent) throw new Error("Could not create the Log it folder in Drive.");
 
-    const existing = await findVisibleBackup();
-    if (existing?.id) {
-      await multipartUpload({ metadata: { name }, body, fileIdToUpdate: existing.id });
-      fileUrl = existing.webViewLink || fileLink(existing.id);
+    if (fileId) {
+      await multipartUpload({ metadata: { name }, body, fileIdToUpdate: fileId });
       return;
     }
 
+    const existing = await findVisibleBackup().catch(() => null);
+    if (existing?.id) {
+      rememberBackupFile(existing);
+      await multipartUpload({ metadata: { name }, body, fileIdToUpdate: existing.id });
+      return;
+    }
+
+    const parent = await ensureVisibleFolder();
+    if (!parent) throw new Error("Could not create the Log it folder in Drive.");
     await multipartUpload({
       metadata: { name, parents: [parent] },
       body,
@@ -426,14 +460,24 @@ window.MMC = window.MMC || {};
   };
 
   window.MMC.googleRestoreToken = async function googleRestoreToken(interactive = false) {
-    if (applyStoredToken()) return true;
-    if (!getClientId() || !interactive) return false;
+    if (applyStoredToken() && tokenHasVisibleDrive()) return true;
+    if (!getClientId()) return false;
+    const consented = Boolean(localStorage.getItem(CONSENT_KEY));
+    if (!interactive && !consented && !accessToken) return false;
     try {
-      await requestToken(localStorage.getItem(CONSENT_KEY) ? "" : "consent");
-      await window.MMC.flushDrivePush();
-      return true;
+      await requestToken(interactive ? "consent" : "");
+      if (!tokenHasVisibleDrive() && interactive) {
+        await requestToken("consent");
+      }
+      return Boolean(accessToken);
     } catch {
-      return false;
+      if (!interactive) return false;
+      try {
+        await requestToken("consent");
+        return Boolean(accessToken);
+      } catch {
+        return false;
+      }
     }
   };
 
@@ -466,28 +510,28 @@ window.MMC = window.MMC || {};
     if (!tokenHasVisibleDrive()) {
       await requestToken("consent");
     }
-    await uploadDriveState(state);
+    let toWrite = state;
+    if (!extra.skipPull && !extra.keepalive) {
+      try {
+        const remote = await downloadDriveState();
+        if (remote) toWrite = window.MMC.mergeTrackerState(state, remote);
+      } catch {
+        /* still upload what we have */
+      }
+    }
+    await uploadDriveState(toWrite);
     lastSyncAt = Date.now();
     lastSyncError = "";
-    if (pendingPayload === state) pendingPayload = null;
-    return true;
+    pendingPayload = null;
+    return toWrite;
   };
-
-  let pendingPayload = null;
 
   window.MMC.flushDrivePush = async function flushDrivePush(keepalive = false) {
     const payload = pendingPayload;
     if (!payload || !accessToken) return false;
     clearTimeout(syncTimer);
     try {
-      if (keepalive) {
-        await uploadDriveState(payload);
-        lastSyncAt = Date.now();
-        lastSyncError = "";
-        pendingPayload = null;
-        return true;
-      }
-      return window.MMC.drivePush(payload);
+      return await window.MMC.drivePush(payload, { keepalive: Boolean(keepalive), skipPull: Boolean(keepalive) });
     } catch (err) {
       lastSyncError = err.message || "Drive sync failed.";
       return false;
@@ -498,7 +542,9 @@ window.MMC = window.MMC || {};
     pendingPayload = state;
     if (!accessToken) return;
     clearTimeout(syncTimer);
-    window.MMC.flushDrivePush();
+    syncTimer = setTimeout(() => {
+      window.MMC.flushDrivePush();
+    }, 700);
   };
 
   window.MMC.mergeDriveState = function mergeDriveState(localState, remoteState) {
