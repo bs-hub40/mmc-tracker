@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#0c0e12" />
     <meta name="color-scheme" content="dark" />
     <title>Log it</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260908-sync1" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260908-sync1" />
-    <link rel="shortcut icon" href="favicon.png?v=20260908-sync1" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260908-sync1" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260908-glossary1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260908-glossary1" />
+    <link rel="shortcut icon" href="favicon.png?v=20260908-glossary1" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260908-glossary1" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,13 +17,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260908-sync1" />
+    <link rel="stylesheet" href="css/styles.css?v=20260908-glossary1" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="auth-hero">
-          <img class="brand-mark auth-mark" src="icons/log-it-icon.png?v=20260908-sync1" alt="" width="56" height="56" />
+          <img class="brand-mark auth-mark" src="icons/log-it-icon.png?v=20260908-glossary1" alt="" width="56" height="56" />
           <h1>Log it</h1>
           <p class="auth-lead">Type what you ate or did. We’ll estimate the calories.</p>
         </div>
@@ -56,7 +56,7 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260908-sync1" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260908-glossary1" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline" id="user-tagline">Food · activity · weight</p>
@@ -161,7 +161,7 @@
               <h2>Weekly trend</h2>
               <span class="trend-chip" id="week-hit-rate">0/7 hit</span>
             </div>
-            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 7 days</p>
+            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 7 days <button type="button" class="info-i" data-glossary="net" aria-label="What is net calories?">i</button></p>
             <div class="chart" id="week-chart" aria-label="Weekly calorie chart"></div>
             <div class="trend-stats" id="week-stats"></div>
             <div class="goal-legend">Green = goal day · Net = food − activity burn</div>
@@ -174,7 +174,7 @@
               <h2>Monthly trend</h2>
               <span class="trend-chip" id="month-hit-rate">0/30 hit</span>
             </div>
-            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 30 days</p>
+            <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 30 days <button type="button" class="info-i" data-glossary="net" aria-label="What is net calories?">i</button></p>
             <div class="chart chart-dense" id="month-chart" aria-label="Monthly calorie chart"></div>
             <div class="trend-stats" id="month-stats"></div>
             <div class="goal-legend" id="goal-legend-month">
@@ -309,6 +309,9 @@
           <button type="button" class="settings-nav-btn" data-settings-section="account" role="tab" aria-selected="false">
             Account
           </button>
+          <button type="button" class="settings-nav-btn" data-settings-section="glossary" role="tab" aria-selected="false">
+            Glossary
+          </button>
         </nav>
 
         <section class="settings-panel" data-settings-panel="goals">
@@ -349,7 +352,7 @@
                 </div>
               </label>
               <label class="goal-field">
-                <span>Body fat %</span>
+                <span>Body fat % <button type="button" class="info-i" data-glossary="body-fat" aria-label="What is body fat %?">i</button></span>
                 <input type="number" id="macro-bf" class="field-input" inputmode="decimal" step="0.1" min="0" max="75" placeholder="e.g. 18" />
               </label>
               <label class="goal-field">
@@ -364,9 +367,9 @@
                 </div>
               </div>
             </div>
-            <p class="field-label">Activity level</p>
+            <p class="field-label">Activity level <button type="button" class="info-i" data-glossary="activity-level" aria-label="What is activity level?">i</button></p>
             <div class="choice-stack" id="macro-activity-picks" role="radiogroup" aria-label="Activity level"></div>
-            <p class="field-label">Nutrition strategy</p>
+            <p class="field-label">Nutrition strategy <button type="button" class="info-i" data-glossary="strategy" aria-label="What is nutrition strategy?">i</button></p>
             <div class="choice-stack" id="macro-strategy-picks" role="radiogroup" aria-label="Nutrition strategy"></div>
             <p class="log-hint" id="macro-hint" hidden></p>
             <div id="macro-results" class="macro-results" hidden></div>
@@ -374,31 +377,41 @@
           </div>
 
           <h2 class="settings-title">Daily goals</h2>
-          <p class="field-help">Fiber stays yours when you apply the calculator. These numbers drive progress bars, remaining calories, and trends. Calories you burn stretch the bars past a goal line, keeping the same protein / fat / carb ratio.</p>
+          <p class="field-help">Fiber stays yours when you apply the calculator. These numbers drive progress bars, remaining calories, and trends. Calories you burn stretch the bars past a goal line, keeping the same protein / fat / carb ratio. Maintenance is where the deficit ends — today’s workouts raise that line.</p>
           <div class="goals-grid">
             <label class="goal-field">
-              <span>Calories (kcal)</span>
+              <span>Calories (kcal) <button type="button" class="info-i" data-glossary="calories" aria-label="What are calories?">i</button></span>
               <input type="number" id="goal-calories" class="field-input" min="1" step="1" />
             </label>
             <label class="goal-field">
-              <span>Protein (g)</span>
+              <span>Protein (g) <button type="button" class="info-i" data-glossary="protein" aria-label="What is protein?">i</button></span>
               <input type="number" id="goal-protein" class="field-input" min="1" step="1" />
             </label>
             <label class="goal-field">
-              <span>Fat cap (g)</span>
+              <span>Fat cap (g) <button type="button" class="info-i" data-glossary="fat" aria-label="What is fat cap?">i</button></span>
               <input type="number" id="goal-fat" class="field-input" min="1" step="1" />
             </label>
             <label class="goal-field">
-              <span>Carbs (g)</span>
+              <span>Carbs (g) <button type="button" class="info-i" data-glossary="carbs" aria-label="What are carbs?">i</button></span>
               <input type="number" id="goal-carbs" class="field-input" min="1" step="1" />
             </label>
             <label class="goal-field">
-              <span>Fiber min (g)</span>
+              <span>Fiber min (g) <button type="button" class="info-i" data-glossary="fiber" aria-label="What is fiber?">i</button></span>
               <input type="number" id="goal-fiber" class="field-input" min="1" step="1" />
+            </label>
+            <label class="goal-field">
+              <span>Maintenance / TDEE <button type="button" class="info-i" data-glossary="tdee" aria-label="What is TDEE?">i</button></span>
+              <input type="number" id="goal-maintenance" class="field-input" min="1" step="1" placeholder="e.g. 2736" />
             </label>
           </div>
           <button type="button" class="btn btn-primary" id="save-goals-btn">Save goals</button>
           <p class="log-hint" id="goals-hint" hidden></p>
+        </section>
+
+        <section class="settings-panel" data-settings-panel="glossary" hidden>
+          <h2 class="settings-title">Glossary</h2>
+          <p class="field-help">Tap a circled i anywhere in the app for a short note. This is the full list.</p>
+          <dl class="glossary-list" id="glossary-list"></dl>
         </section>
 
         <section class="settings-panel" data-settings-panel="quick" hidden>
@@ -533,6 +546,12 @@
       </div>
     </div>
 
+    <div id="glossary-tip" class="glossary-tip" hidden role="tooltip">
+      <strong id="glossary-tip-term"></strong>
+      <p id="glossary-tip-body"></p>
+      <button type="button" class="glossary-tip-more" data-open-glossary>Open glossary</button>
+    </div>
+
     <script>
       try {
         var raw = localStorage.getItem("mmc-auth-v1");
@@ -567,12 +586,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260908-sync1"></script>
-    <script src="js/storage.js?v=20260908-sync1"></script>
-    <script src="js/providers.js?v=20260908-sync1"></script>
-    <script src="js/auth.js?v=20260908-sync1"></script>
-    <script src="js/google.js?v=20260908-sync1"></script>
-    <script src="js/grok.js?v=20260908-sync1"></script>
-    <script src="js/app.js?v=20260908-sync1"></script>
+    <script src="js/config.js?v=20260908-glossary1"></script>
+    <script src="js/storage.js?v=20260908-glossary1"></script>
+    <script src="js/providers.js?v=20260908-glossary1"></script>
+    <script src="js/auth.js?v=20260908-glossary1"></script>
+    <script src="js/google.js?v=20260908-glossary1"></script>
+    <script src="js/grok.js?v=20260908-glossary1"></script>
+    <script src="js/app.js?v=20260908-glossary1"></script>
   </body>
 </html>

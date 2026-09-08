@@ -564,10 +564,35 @@ Rules:
   },
 
   getTargets(state) {
+    const goals = state?.goals || {};
+    const maintenance = Number(goals.maintenance);
     return {
       ...window.MMC.DEFAULT_TARGETS,
-      ...(state?.goals || {}),
+      ...goals,
+      maintenance:
+        Number.isFinite(maintenance) && maintenance > 0 ? Math.round(maintenance) : null,
     };
+  },
+
+  estimateTdee(state) {
+    const profile = window.MMC.sanitizeProfile(state?.profile);
+    if (!profile.age || !profile.sex || !profile.heightIn || !profile.activityPal) {
+      return null;
+    }
+    const latest = window.MMC.weightStats(state).latest;
+    if (!latest) return null;
+    const weightLb =
+      latest.unit === "kg"
+        ? window.MMC.convertWeight(latest.weight, "kg", "lb")
+        : Number(latest.weight);
+    if (!Number.isFinite(weightLb) || weightLb <= 0) return null;
+    const bmr = window.MMC.mifflinBmr(weightLb, profile.heightIn, profile.age, profile.sex);
+    if (!Number.isFinite(bmr) || bmr <= 0) return null;
+    return Math.round(bmr * profile.activityPal);
+  },
+
+  getMaintenanceKcal(state) {
+    return window.MMC.estimateTdee(state) || window.MMC.getTargets(state).maintenance || null;
   },
 
   sanitizeGoals(input) {
@@ -576,12 +601,15 @@ Rules:
       const n = Number(v);
       return Number.isFinite(n) && n > 0 ? window.MMC.round1(n) : fallback;
     };
+    const maintenance = Number(input?.maintenance);
     return {
       calories: num(input.calories, defaults.calories),
       protein: num(input.protein, defaults.protein),
       fat: num(input.fat, defaults.fat),
       carbs: num(input.carbs, defaults.carbs),
       fiber: num(input.fiber, defaults.fiber),
+      maintenance:
+        Number.isFinite(maintenance) && maintenance > 0 ? Math.round(maintenance) : null,
     };
   },
 
@@ -1007,6 +1035,11 @@ Rules:
     const remaining = targets.calories - netCalories;
     const budget = targets.calories + burned;
     const bonus = window.MMC.burnBonus(targets, burned);
+    const maintenance = window.MMC.getMaintenanceKcal(state);
+    const deficitUntil =
+      maintenance != null ? window.MMC.round1(maintenance + burned) : null;
+    const deficit =
+      maintenance != null ? window.MMC.round1(maintenance - netCalories) : null;
     return {
       food,
       burned,
@@ -1014,6 +1047,9 @@ Rules:
       remaining,
       budget,
       bonus,
+      maintenance,
+      deficitUntil,
+      deficit,
       targets,
       macros: {
         ...food,

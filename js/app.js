@@ -57,11 +57,181 @@
     stateHasLogs,
   } = window.MMC;
 
+  const GLOSSARY = [
+    {
+      id: "calories",
+      term: "Calories",
+      body: "Energy in food. Your calorie goal is how much to eat on a typical day so the rest of the plan has a target.",
+    },
+    {
+      id: "goal",
+      term: "Daily goal",
+      body: "The calorie target you set (or the calculator set). The white line on the bar. Hitting this keeps the deficit you planned.",
+    },
+    {
+      id: "tdee",
+      term: "Maintenance / TDEE",
+      body: "Calories you’d need to hold your current weight, including normal daily movement. It does not include workouts you log in the app. That’s where the deficit ends.",
+    },
+    {
+      id: "deficit",
+      term: "Deficit",
+      body: "Eating fewer net calories than maintenance. The teal line is the last calorie you can eat today and still be losing. Workouts you log raise that line.",
+    },
+    {
+      id: "surplus",
+      term: "Surplus",
+      body: "Net calories above maintenance. Weight tends to go up if this keeps happening.",
+    },
+    {
+      id: "food",
+      term: "Food",
+      body: "Calories from meals you logged today.",
+    },
+    {
+      id: "burned",
+      term: "Burned",
+      body: "Calories from workouts you logged today. These are extra on top of TDEE, so they let you eat more and stay in the same kind of deficit.",
+    },
+    {
+      id: "net",
+      term: "Net",
+      body: "Food minus burned. Compared with your daily goal, and with maintenance to see if you’re still in a deficit.",
+    },
+    {
+      id: "budget",
+      term: "Budget",
+      body: "Daily goal plus today’s logged burn. Eating here is like hitting your goal after accounting for the workout.",
+    },
+    {
+      id: "macros",
+      term: "Macros",
+      body: "Protein, fat, and carbs. Extra calories from exercise keep the same split as your daily targets. Fiber does not scale.",
+    },
+    {
+      id: "protein",
+      term: "Protein",
+      body: "Helps keep muscle while you lose or gain. Treat this as a target to hit.",
+    },
+    {
+      id: "fat",
+      term: "Fat cap",
+      body: "An upper limit, not a goal. Stay at or under this number.",
+    },
+    {
+      id: "carbs",
+      term: "Carbs",
+      body: "Your main fuel. Treat this as a target to hit.",
+    },
+    {
+      id: "fiber",
+      term: "Fiber",
+      body: "A minimum, not a cap. Going over is fine. It does not grow when you burn extra calories.",
+    },
+    {
+      id: "bmr",
+      term: "BMR",
+      body: "Calories your body would use at complete rest. TDEE starts from this, then adds daily movement.",
+    },
+    {
+      id: "activity-level",
+      term: "Activity level",
+      body: "How much you move on a normal day — walking, work, fidgeting. Used to estimate TDEE. It is not the same as a workout you log.",
+    },
+    {
+      id: "activity-burn",
+      term: "Activity burn (calculator)",
+      body: "The slice of TDEE above BMR from your activity level. Separate from calories burned in a logged workout.",
+    },
+    {
+      id: "lbm",
+      term: "Lean mass",
+      body: "Body weight minus estimated fat. The calculator uses it to size protein.",
+    },
+    {
+      id: "body-fat",
+      term: "Body fat %",
+      body: "Estimate of how much of your weight is fat. The calculator uses it with weight to get lean mass.",
+    },
+    {
+      id: "strategy",
+      term: "Nutrition strategy",
+      body: "How the calculator splits protein, fat, and carbs. Ketogenic, animal-based, or pro-metabolic — calories still come from your cut, maintain, or bulk math.",
+    },
+  ];
+
   const LOG_COPY = {
     label: "Log food or activity",
     placeholder:
       'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter, 30 min walk"',
   };
+
+  function glossaryEntry(id) {
+    return GLOSSARY.find((item) => item.id === id) || null;
+  }
+
+  function infoI(id) {
+    const entry = glossaryEntry(id);
+    if (!entry) return "";
+    return `<button type="button" class="info-i" data-glossary="${id}" aria-label="What is ${entry.term}?" title="${entry.term}">i</button>`;
+  }
+
+  function closeGlossaryTip() {
+    if (!els.glossaryTip) return;
+    els.glossaryTip.hidden = true;
+    els.glossaryTip.removeAttribute("data-glossary-id");
+  }
+
+  function positionGlossaryTip(btn) {
+    const tip = els.glossaryTip;
+    if (!tip || !btn) return;
+    const pad = 10;
+    const r = btn.getBoundingClientRect();
+    const tipW = Math.min(280, window.innerWidth - pad * 2);
+    tip.style.width = `${tipW}px`;
+    let left = r.left + r.width / 2 - tipW / 2;
+    left = Math.min(window.innerWidth - tipW - pad, Math.max(pad, left));
+    tip.style.left = `${left}px`;
+    tip.style.right = "auto";
+    const tipH = tip.offsetHeight || 120;
+    const below = r.bottom + 8 + tipH + pad < window.innerHeight;
+    tip.style.top = below ? `${r.bottom + 8}px` : `${Math.max(pad, r.top - tipH - 8)}px`;
+  }
+
+  function openGlossaryTip(btn) {
+    const entry = glossaryEntry(btn.getAttribute("data-glossary"));
+    if (!entry || !els.glossaryTip) return;
+    if (els.glossaryTipTerm) els.glossaryTipTerm.textContent = entry.term;
+    if (els.glossaryTipBody) els.glossaryTipBody.textContent = entry.body;
+    els.glossaryTip.hidden = false;
+    els.glossaryTip.setAttribute("data-glossary-id", entry.id);
+    positionGlossaryTip(btn);
+  }
+
+  function goToGlossary(id) {
+    closeGlossaryTip();
+    setMode("settings");
+    setSettingsSection("glossary");
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`glossary-${id}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("is-focus");
+      window.setTimeout(() => el.classList.remove("is-focus"), 1800);
+    });
+  }
+
+  function renderGlossary() {
+    if (!els.glossaryList) return;
+    els.glossaryList.innerHTML = GLOSSARY.map(
+      (item) => `
+        <div class="glossary-item" id="glossary-${item.id}">
+          <dt>${item.term}</dt>
+          <dd>${item.body}</dd>
+        </div>
+      `
+    ).join("");
+  }
 
   function logButtonLabel() {
     return "Log It";
@@ -179,6 +349,7 @@
     goalFat: document.getElementById("goal-fat"),
     goalCarbs: document.getElementById("goal-carbs"),
     goalFiber: document.getElementById("goal-fiber"),
+    goalMaintenance: document.getElementById("goal-maintenance"),
     saveGoalsBtn: document.getElementById("save-goals-btn"),
     goalsHint: document.getElementById("goals-hint"),
     macroWeight: document.getElementById("macro-weight"),
@@ -238,6 +409,10 @@
     tourBody: document.getElementById("tour-body"),
     tourSkipBtn: document.getElementById("tour-skip-btn"),
     tourNextBtn: document.getElementById("tour-next-btn"),
+    glossaryList: document.getElementById("glossary-list"),
+    glossaryTip: document.getElementById("glossary-tip"),
+    glossaryTipTerm: document.getElementById("glossary-tip-term"),
+    glossaryTipBody: document.getElementById("glossary-tip-body"),
   };
 
   let editTarget = null;
@@ -270,7 +445,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Streak and remaining calories stay up top while you log. If you burn calories, a line on the bars marks your daily goal — past it is extra from activity, at the same macro ratio.",
+      body: "Streak and remaining calories stay up top while you log. The teal line is the last calorie you can eat and still be in a deficit. Past the white goal line is extra from activity.",
       target: "#daily-tracker",
     },
     {
@@ -651,7 +826,7 @@
   }
 
   function setSettingsSection(section) {
-    const allowed = new Set(["goals", "quick", "account"]);
+    const allowed = new Set(["goals", "quick", "account", "glossary"]);
     settingsSection = allowed.has(section) ? section : "goals";
     document.querySelectorAll("[data-settings-section]").forEach((tab) => {
       const active = tab.dataset.settingsSection === settingsSection;
@@ -686,6 +861,9 @@
     els.goalFat.value = t.fat;
     els.goalCarbs.value = t.carbs;
     els.goalFiber.value = t.fiber;
+    if (els.goalMaintenance) {
+      els.goalMaintenance.value = t.maintenance || "";
+    }
     Object.assign(state, migrateAiSettings(state));
     state.quickActions = sanitizeQuickActions(state.quickActions);
     els.settingsUsername.textContent = session?.username || "—";
@@ -701,6 +879,7 @@
     paintThemePicker(sanitizeTheme(state.theme));
     paintProfileForm();
     paintMacroForm();
+    renderGlossary();
   }
 
   function renderDriveStatus() {
@@ -1318,28 +1497,50 @@
     els.streakBest.textContent = `Best ${best}`;
   }
 
-  function budgetBar({ value, base, extended, fillClass, showMark }) {
-    const scale = Math.max(Number(extended) || 0, 0.0001);
-    const markPct = Math.max(0, Math.min(100, (Number(base) / scale) * 100));
-    const clamped = Math.max(0, Math.min(Number(value) || 0, scale));
-    const baseFill = Math.min(clamped, Math.max(0, Number(base) || 0));
-    const bonusFill = Math.max(0, clamped - baseFill);
-    const basePct = (baseFill / scale) * 100;
-    const bonusPct = (bonusFill / scale) * 100;
-    const over = (Number(value) || 0) > scale + 0.05;
-    const zonePct = Math.max(0, 100 - markPct);
+  function budgetBar({ value, base, extended, fillClass, showMark, deficitUntil = 0 }) {
+    const goal = Math.max(0, Number(base) || 0);
+    const ext = Math.max(Number(extended) || 0, goal);
+    const def = Math.max(0, Number(deficitUntil) || 0);
+    const eaten = Math.max(0, Number(value) || 0);
+    const scale = Math.max(ext, def, eaten, 0.0001);
+    const pct = (n) => Math.max(0, Math.min(100, (n / scale) * 100));
+    const goalPct = pct(goal);
+    const extPct = pct(ext);
+    const defPct = def > 0 ? pct(def) : 0;
+    const eatenClamped = Math.min(eaten, scale);
+    const baseFill = Math.min(eatenClamped, goal);
+    const bonusFill = Math.max(0, Math.min(eatenClamped, ext) - goal);
+    const coastFill = def > ext ? Math.max(0, Math.min(eatenClamped, def) - ext) : 0;
+    const surplusFill = def > 0 ? Math.max(0, eatenClamped - Math.max(ext, def)) : 0;
+    const over = eaten > Math.max(ext, def) + 0.05;
+    const showGoalMark = goal > 0 && goalPct < 99.2;
+    const showDeficitMark = def > goal + 20;
+    const showBurnMark = false;
     return `
-      <div class="budget-track${showMark ? " has-burn" : ""}${over ? " is-over" : ""}" aria-hidden="true">
+      <div class="budget-track${showMark || showDeficitMark ? " has-burn" : ""}${over ? " is-over" : ""}${showDeficitMark ? " has-deficit" : ""}" aria-hidden="true">
         <div class="budget-well">
-          ${showMark ? `<div class="budget-zone" style="left:${markPct}%;width:${zonePct}%"></div>` : ""}
-          <div class="${fillClass}" style="width:${basePct.toFixed(2)}%"></div>
+          ${showDeficitMark ? `<div class="budget-deficit-zone" style="width:${defPct.toFixed(2)}%"></div>` : ""}
+          ${showMark ? `<div class="budget-zone" style="left:${goalPct.toFixed(2)}%;width:${Math.max(0, extPct - goalPct).toFixed(2)}%"></div>` : ""}
+          <div class="${fillClass}" style="width:${pct(baseFill).toFixed(2)}%"></div>
           ${
-            bonusPct > 0.15
-              ? `<div class="${fillClass} budget-fill-bonus" style="left:${basePct.toFixed(2)}%;width:${bonusPct.toFixed(2)}%"></div>`
+            bonusFill > 0.15
+              ? `<div class="${fillClass} budget-fill-bonus" style="left:${goalPct.toFixed(2)}%;width:${pct(bonusFill).toFixed(2)}%"></div>`
+              : ""
+          }
+          ${
+            coastFill > 0.15
+              ? `<div class="${fillClass} budget-fill-coast" style="left:${extPct.toFixed(2)}%;width:${pct(coastFill).toFixed(2)}%"></div>`
+              : ""
+          }
+          ${
+            surplusFill > 0.15
+              ? `<div class="macro-fill budget-fill-surplus" style="left:${pct(Math.max(ext, def)).toFixed(2)}%;width:${pct(surplusFill).toFixed(2)}%"></div>`
               : ""
           }
         </div>
-        ${showMark ? `<div class="budget-mark" style="left:${markPct.toFixed(2)}%"></div>` : ""}
+        ${showGoalMark ? `<div class="budget-mark" style="left:${goalPct.toFixed(2)}%"></div>` : ""}
+        ${showBurnMark ? `<div class="budget-mark burn" style="left:${extPct.toFixed(2)}%"></div>` : ""}
+        ${showDeficitMark ? `<div class="budget-mark deficit" style="left:${defPct.toFixed(2)}%"></div>` : ""}
       </div>
     `;
   }
@@ -1351,19 +1552,46 @@
     const foodKcal = energy.food.calories;
     const burned = energy.burned;
     const bonus = energy.bonus || window.MMC.burnBonus(t, burned);
+    const budget = bonus.extended.calories;
+    const deficitUntil = energy.deficitUntil;
+    const cutting = deficitUntil != null && deficitUntil > t.calories + 20;
     const intoBurn = burned > 0 && foodKcal > t.calories && remaining >= 0;
-    let remClass = "";
-    if (remaining < 0) remClass = "over";
-    else if (intoBurn) remClass = "into-burn";
-    else if (Math.abs(remaining) <= t.calories * 0.1) remClass = "on-track";
+    const pastMaint = cutting && foodKcal > deficitUntil;
 
-    const amount = round1(Math.abs(remaining));
+    let remClass = "";
+    let amount = round1(Math.abs(remaining));
     let status = "left today";
-    if (remaining < 0) status = burned > 0 ? "over budget" : "over goal";
-    else if (intoBurn) status = "of burn left";
+    if (pastMaint) {
+      remClass = "over";
+      amount = round1(foodKcal - deficitUntil);
+      status = "over maintenance";
+    } else if (cutting && foodKcal > t.calories) {
+      remClass = "in-deficit";
+      amount = round1(deficitUntil - foodKcal);
+      status = "in deficit";
+    } else if (remaining < 0) {
+      remClass = "over";
+      status = burned > 0 ? "over budget" : "over goal";
+    } else if (intoBurn) {
+      remClass = "into-burn";
+      status = "of burn left";
+    } else if (Math.abs(remaining) <= t.calories * 0.1) {
+      remClass = "on-track";
+    }
 
     const showMark = burned > 0;
-    const budget = bonus.extended.calories;
+    const valueRight = cutting
+      ? `goal ${t.calories} · deficit ${round1(deficitUntil)}`
+      : showMark
+        ? `goal ${t.calories} · budget ${round1(budget)}`
+        : `of ${t.calories}`;
+
+    const deficitCell =
+      energy.deficit != null
+        ? energy.deficit >= 0
+          ? `<span class="deficit">Deficit<strong>${round1(energy.deficit)}</strong></span>`
+          : `<span class="surplus">Surplus<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
+        : "";
 
     els.energyCard.innerHTML = `
       <div class="energy-hero">
@@ -1372,8 +1600,9 @@
           <div class="energy-hero-label">${status}</div>
         </div>
         <div class="energy-hero-meta">
-          Goal ${t.calories} kcal
-          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity</div>` : ""}
+          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
+          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
+          ${cutting ? `<div class="energy-hero-deficit">Still in deficit to ${round1(deficitUntil)} ${infoI("deficit")}</div>` : ""}
         </div>
       </div>
       <div class="energy-budget">
@@ -1383,16 +1612,29 @@
           extended: budget,
           fillClass: "macro-fill calories",
           showMark,
+          deficitUntil: cutting ? deficitUntil : 0,
         })}
         <div class="energy-budget-values">
           <span>${round1(foodKcal)} eaten</span>
-          <span>${showMark ? `goal ${t.calories} · budget ${round1(budget)}` : `of ${t.calories}`}</span>
+          <span>${valueRight}</span>
         </div>
+        ${
+          cutting
+            ? `<p class="budget-legend">White line is your daily goal. Teal line is the last calorie you can eat and still be in a deficit.</p>`
+            : ""
+        }
       </div>
-      <div class="energy-strip">
-        <span>Food<strong>${round1(foodKcal)}</strong></span>
-        <span class="burn">Burned<strong>${round1(burned)}</strong></span>
-        <span>Net<strong>${round1(energy.netCalories)}</strong></span>
+      <div class="energy-strip${deficitCell ? " has-deficit" : ""}">
+        <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
+        <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
+        <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
+        ${
+          energy.deficit != null
+            ? energy.deficit >= 0
+              ? `<span class="deficit">Deficit ${infoI("deficit")}<strong>${round1(energy.deficit)}</strong></span>`
+              : `<span class="surplus">Surplus ${infoI("surplus")}<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
+            : ""
+        }
       </div>
     `;
   }
@@ -1435,7 +1677,7 @@
 
         return `
           <div class="${rowClass}">
-            <div class="macro-name">${meta.label}</div>
+            <div class="macro-name">${meta.label} ${infoI(meta.key === "fat" ? "fat" : meta.key)}</div>
             ${budgetBar({
               value,
               base,
@@ -2154,6 +2396,7 @@
       fat: els.goalFat.value,
       carbs: els.goalCarbs.value,
       fiber: els.goalFiber.value,
+      maintenance: els.goalMaintenance?.value,
     });
     persist();
     renderAll();
@@ -2299,10 +2542,10 @@
         <div class="macro-macro"><span>Fat</span><strong>${cur.fat} g</strong></div>
       </div>
       <div class="macro-stat-grid">
-        <div class="macro-stat"><span>BMR</span><strong>${Math.round(result.bmr)} kcal</strong></div>
-        <div class="macro-stat"><span>TDEE</span><strong>${Math.round(result.tdee)} kcal</strong></div>
-        <div class="macro-stat"><span>Lean mass</span><strong>${Math.round(result.lbm)} lb</strong></div>
-        <div class="macro-stat"><span>Activity burn</span><strong>${Math.round(result.activityCals)} kcal</strong></div>
+        <div class="macro-stat"><span>BMR ${infoI("bmr")}</span><strong>${Math.round(result.bmr)} kcal</strong></div>
+        <div class="macro-stat"><span>TDEE ${infoI("tdee")}</span><strong>${Math.round(result.tdee)} kcal</strong></div>
+        <div class="macro-stat"><span>Lean mass ${infoI("lbm")}</span><strong>${Math.round(result.lbm)} lb</strong></div>
+        <div class="macro-stat"><span>Activity burn ${infoI("activity-burn")}</span><strong>${Math.round(result.activityCals)} kcal</strong></div>
       </div>
       <p class="field-help">${result.strategyBlurb}</p>
       <p class="field-help">
@@ -2356,6 +2599,7 @@
       fat: result.current.fat,
       carbs: result.current.carbs,
       fiber,
+      maintenance: Math.round(result.tdee),
     });
     persist();
     renderAll();
@@ -3003,8 +3247,43 @@
     });
     els.tourSkipBtn?.addEventListener("click", () => closeTour(true));
     els.tourNextBtn?.addEventListener("click", advanceTour);
+    document.addEventListener(
+      "click",
+      (e) => {
+      const more = e.target.closest("[data-open-glossary]");
+      if (more) {
+        e.preventDefault();
+        e.stopPropagation();
+        goToGlossary(more.getAttribute("data-open-glossary") || els.glossaryTip?.getAttribute("data-glossary-id"));
+        return;
+      }
+      const info = e.target.closest("[data-glossary]");
+      if (info) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (
+          !els.glossaryTip?.hidden &&
+          els.glossaryTip.getAttribute("data-glossary-id") === info.getAttribute("data-glossary")
+        ) {
+          closeGlossaryTip();
+          return;
+        }
+        openGlossaryTip(info);
+        return;
+      }
+      if (els.glossaryTip && !els.glossaryTip.hidden && !e.target.closest("#glossary-tip")) {
+        closeGlossaryTip();
+      }
+      },
+      true
+    );
     window.addEventListener("resize", () => {
       if (tourIsOpen()) layoutTourStep();
+      if (els.glossaryTip && !els.glossaryTip.hidden) {
+        const id = els.glossaryTip.getAttribute("data-glossary-id");
+        const btn = document.querySelector(`[data-glossary="${id}"]`);
+        if (btn) positionGlossaryTip(btn);
+      }
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
@@ -3028,6 +3307,10 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
+      if (els.glossaryTip && !els.glossaryTip.hidden) {
+        closeGlossaryTip();
+        return;
+      }
       if (els.profileOnboard && !els.profileOnboard.hidden) return;
       if (tourIsOpen()) {
         closeTour(true);
