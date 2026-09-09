@@ -1287,13 +1287,39 @@ Rules:
     return Math.max(best, current);
   },
 
-  rangeKeys(days) {
-    const today = window.MMC.todayKey();
+  rangeKeys(days, endKey) {
+    const end =
+      endKey && window.MMC.isValidDateKey(endKey)
+        ? endKey
+        : window.MMC.todayKey();
+    const n = Math.max(0, Number(days) || 0);
     const keys = [];
-    for (let i = days - 1; i >= 0; i -= 1) {
-      keys.push(window.MMC.shiftKey(today, -i));
+    for (let i = n - 1; i >= 0; i -= 1) {
+      keys.push(window.MMC.shiftKey(end, -i));
     }
     return keys;
+  },
+
+  // Mean net kcal over the last `days` calendar days ending at endKey (default today).
+  // Days with no meal logs are omitted — not treated as zero. Activity-only or
+  // weight-only days still count for streak via dayHasEntry, but they are not
+  // food days, so they stay out of this calorie average.
+  rollingNetAverage(state, days, endKey) {
+    const series = window.MMC.rangeKeys(days, endKey).map((key) =>
+      window.MMC.dayStatus(state, key)
+    );
+    const logged = series.filter((d) => d.logged);
+    return {
+      days: Math.max(0, Number(days) || 0),
+      end:
+        endKey && window.MMC.isValidDateKey(endKey)
+          ? endKey
+          : window.MMC.todayKey(),
+      loggedCount: logged.length,
+      avg: logged.length
+        ? window.MMC.avg(logged.map((d) => d.energy.netCalories))
+        : null,
+    };
   },
 
   trendSeries(state, days) {
