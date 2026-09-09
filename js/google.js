@@ -24,6 +24,10 @@ window.MMC = window.MMC || {};
   let lastSyncError = "";
   let grantedScopes = "";
   let pendingPayload = null;
+  let pendingEpoch = 0;
+  let pendingSkipPull = false;
+  let writeEpoch = 0;
+  let driveChain = Promise.resolve();
 
   function getClientId() {
     const fromSettings = (localStorage.getItem(window.MMC.GOOGLE_CLIENT_ID_KEY) || "").trim();
@@ -494,52 +498,93 @@ window.MMC = window.MMC || {};
     }
   };
 
-  window.MMC.drivePull = async function drivePull() {
-    if (!accessToken) return null;
-    const raw = await downloadDriveState();
-    if (!raw) return null;
-    return window.MMC.hydrateState(raw);
+  function enqueueDrive(task) {
+    const run = driveChain.then(task, task);
+    driveChain = run.then(
+      () => {},
+      () => {}
+    );
+    return run;
+  }
+
+  window.MMC.invalidateDriveWrites = function invalidateDriveWrites() {
+    writeEpoch += 1;
   };
 
-  window.MMC.drivePush = async function drivePush(state, extra = {}) {
+  window.MMC.drivePull = async function drivePull() {
+    return enqueueDrive(async () => {
+      if (!accessToken) return null;
+      const raw = await downloadDriveState();
+      if (!raw) return null;
+      return window.MMC.hydrateState(raw);
+    });
+  };
+
+  async function pushNow(state, extra = {}) {
+    const epoch = Number(extra.epoch) || writeEpoch;
     if (!state) return false;
+    if (epoch !== writeEpoch) return false;
     if (!accessToken) {
-      pendingPayload = state;
+      pendingPayload = window.MMC.clonePayload(state);
+      pendingEpoch = epoch;
+      pendingSkipPull = true;
       return false;
     }
     if (!tokenHasVisibleDrive()) {
       await requestToken("consent");
     }
+    if (epoch !== writeEpoch) return false;
     let toWrite = state;
     if (!extra.skipPull && !extra.keepalive) {
       try {
         const remote = await downloadDriveState();
+        if (epoch !== writeEpoch) return false;
         if (remote) toWrite = window.MMC.mergeTrackerState(state, remote);
       } catch {
         /* still upload what we have */
       }
     }
+    if (epoch !== writeEpoch) return false;
+    toWrite = window.MMC.applyTombstones(toWrite);
+    if (epoch !== writeEpoch) return false;
     await uploadDriveState(toWrite);
+    if (epoch !== writeEpoch) return toWrite;
     lastSyncAt = Date.now();
     lastSyncError = "";
-    pendingPayload = null;
+    if (pendingEpoch === epoch) pendingPayload = null;
     return toWrite;
+  }
+
+  window.MMC.drivePush = async function drivePush(state, extra = {}) {
+    if (!state) return false;
+    const epoch = extra.epoch != null ? extra.epoch : writeEpoch;
+    return enqueueDrive(() => pushNow(state, { ...extra, epoch }));
   };
 
   window.MMC.flushDrivePush = async function flushDrivePush(keepalive = false) {
     const payload = pendingPayload;
+    const epoch = pendingEpoch;
     if (!payload || !accessToken) return false;
     clearTimeout(syncTimer);
-    try {
-      return await window.MMC.drivePush(payload, { keepalive: Boolean(keepalive), skipPull: Boolean(keepalive) });
-    } catch (err) {
-      lastSyncError = err.message || "Drive sync failed.";
-      return false;
-    }
+    return enqueueDrive(async () => {
+      if (epoch !== writeEpoch) return false;
+      try {
+        return await pushNow(payload, {
+          keepalive: Boolean(keepalive),
+          skipPull: Boolean(keepalive) || pendingSkipPull,
+          epoch,
+        });
+      } catch (err) {
+        lastSyncError = err.message || "Drive sync failed.";
+        return false;
+      }
+    });
   };
 
-  window.MMC.scheduleDrivePush = function scheduleDrivePush(state) {
-    pendingPayload = state;
+  window.MMC.scheduleDrivePush = function scheduleDrivePush(state, extra = {}) {
+    pendingPayload = window.MMC.clonePayload(state);
+    pendingSkipPull = extra.skipPull !== false;
+    pendingEpoch = ++writeEpoch;
     if (!accessToken) return;
     clearTimeout(syncTimer);
     syncTimer = setTimeout(() => {

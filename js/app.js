@@ -57,6 +57,9 @@
     stateHasLogs,
     addTombstones,
     hasTombstones,
+    applyTombstones,
+    mergeTombstones,
+    invalidateDriveWrites,
   } = window.MMC;
 
   const GLOSSARY = [
@@ -282,6 +285,7 @@
   let qaBusyIndex = -1;
   let driveSyncing = false;
   let lastDrivePullAt = 0;
+  let lastLocalEditAt = 0;
 
   const els = {
     authScreen: document.getElementById("auth-screen"),
@@ -477,11 +481,12 @@
   }
 
   function persist() {
-    state = ensureToday(state);
+    state = applyTombstones(ensureToday(state));
     state.updatedAt = Date.now();
+    lastLocalEditAt = Date.now();
     saveState(state);
     if (session?.provider === "google") {
-      scheduleDrivePush(state);
+      scheduleDrivePush(state, { skipPull: true });
       flushDrivePush();
       renderDriveStatus();
     }
@@ -928,6 +933,7 @@
     if (session?.provider !== "google") return;
     if (driveSyncing) return;
     const quiet = Boolean(opts.quiet);
+    if (quiet && lastLocalEditAt && Date.now() - lastLocalEditAt < 15000) return;
     const interactive = Boolean(opts.interactive);
     driveSyncing = true;
     try {
@@ -946,13 +952,12 @@
         return;
       }
 
+      remote.tombstones = mergeTombstones(state?.tombstones, remote.tombstones);
       const takeRemote = !stateHasUserData(state) && !hasTombstones(state);
-      state = takeRemote ? remote : mergeDriveState(state, remote);
+      state = applyTombstones(takeRemote ? remote : mergeDriveState(state, remote));
       saveState(state);
       renderAll();
-      if (!takeRemote) {
-        await drivePush(state, { skipPull: true });
-      }
+      await drivePush(state, { skipPull: true });
       renderDriveStatus();
     } catch (err) {
       if (!quiet) setHint(els.driveSyncHint, err.message || "Drive sync failed.");
@@ -2089,10 +2094,23 @@
     }
   }
 
+  function dropHistoryItem(kind, id) {
+    const key = String(id || "");
+    Object.values(state.history || {}).forEach((day) => {
+      if (!day) return;
+      if (kind === "meals") {
+        day.meals = (day.meals || []).filter((m) => String(m.id) !== key);
+      } else if (kind === "activities") {
+        day.activities = (day.activities || []).filter((a) => String(a.id) !== key);
+      }
+    });
+  }
+
   function deleteMeal(id) {
     if (!confirm("Delete this meal?")) return;
+    invalidateDriveWrites();
     addTombstones(state, "meals", id);
-    today().meals = today().meals.filter((m) => m.id !== id);
+    dropHistoryItem("meals", id);
     persist();
     renderAll();
     showToast("Meal deleted", true);
@@ -2100,8 +2118,9 @@
 
   function deleteActivity(id) {
     if (!confirm("Delete this activity?")) return;
+    invalidateDriveWrites();
     addTombstones(state, "activities", id);
-    today().activities = today().activities.filter((a) => a.id !== id);
+    dropHistoryItem("activities", id);
     persist();
     renderAll();
     showToast("Activity deleted", true);
@@ -2109,8 +2128,9 @@
 
   function deleteWeight(id) {
     if (!confirm("Delete this weight entry?")) return;
+    invalidateDriveWrites();
     addTombstones(state, "weights", id);
-    state.weights = (state.weights || []).filter((w) => w.id !== id);
+    state.weights = (state.weights || []).filter((w) => String(w.id) !== String(id));
     persist();
     renderAll();
     showToast("Weight entry deleted", true);
@@ -2386,6 +2406,7 @@
 
   function resetDay() {
     if (!confirm("Clear today's meals and activities?")) return;
+    invalidateDriveWrites();
     const day = today();
     addTombstones(state, "meals", (day.meals || []).map((m) => m.id));
     addTombstones(state, "activities", (day.activities || []).map((a) => a.id));

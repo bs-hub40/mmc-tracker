@@ -328,6 +328,10 @@ Rules:
   },
 
   hydrateState(parsed) {
+    const stones = window.MMC.mergeTombstones(
+      parsed?.tombstones,
+      window.MMC.readStoredTombstones()
+    );
     const merged = {
       ...window.MMC.defaultState(),
       ...(parsed || {}),
@@ -338,10 +342,11 @@ Rules:
       theme: window.MMC.sanitizeTheme(parsed?.theme),
       goalWeight: window.MMC.sanitizeGoalWeight(parsed?.goalWeight),
       profile: window.MMC.sanitizeProfile(parsed?.profile),
-      tombstones: window.MMC.sanitizeTombstones(parsed?.tombstones),
+      tombstones: stones,
       updatedAt: Number(parsed?.updatedAt) || 0,
     };
     Object.assign(merged, window.MMC.migrateAiSettings(merged));
+    window.MMC.writeStoredTombstones(stones);
     return window.MMC.applyTombstones(window.MMC.ensureToday(merged));
   },
 
@@ -350,6 +355,27 @@ Rules:
   },
 
   TOMBSTONE_TTL_MS: 90 * 24 * 60 * 60 * 1000,
+  TOMBSTONE_STORE_KEY: "mmc-tracker-tombstones-v1",
+
+  readStoredTombstones() {
+    try {
+      const raw = localStorage.getItem(window.MMC.TOMBSTONE_STORE_KEY);
+      if (!raw) return window.MMC.emptyTombstones();
+      return window.MMC.sanitizeTombstones(JSON.parse(raw));
+    } catch {
+      return window.MMC.emptyTombstones();
+    }
+  },
+
+  writeStoredTombstones(stones) {
+    const merged = window.MMC.mergeTombstones(window.MMC.readStoredTombstones(), stones);
+    try {
+      localStorage.setItem(window.MMC.TOMBSTONE_STORE_KEY, JSON.stringify(merged));
+    } catch {
+      /* ignore quota */
+    }
+    return merged;
+  },
 
   sanitizeTombstones(input) {
     const now = Date.now();
@@ -410,6 +436,7 @@ Rules:
     });
     stones[kind] = bucket;
     state.tombstones = stones;
+    window.MMC.writeStoredTombstones(stones);
     return state;
   },
 
@@ -417,8 +444,9 @@ Rules:
     const blocked = tombMap || {};
     return (items || []).filter((item) => {
       if (!item) return false;
-      if (!item.id) return true;
-      return !blocked[item.id];
+      const id = item.id != null ? String(item.id) : "";
+      if (!id) return true;
+      return !blocked[id];
     });
   },
 
@@ -440,7 +468,9 @@ Rules:
     const map = new Map();
     (items || []).forEach((item, i) => {
       if (!item) return;
-      map.set(item.id || `anon-${i}-${item.loggedAt || 0}`, item);
+      const id = String(item.id || `anon-${item.loggedAt || 0}-${i}`);
+      item.id = id;
+      map.set(id, item);
     });
     return [...map.values()];
   },
