@@ -6,6 +6,7 @@
     todayKey,
     round1,
     getDay,
+    peekDay,
     ensureToday,
     dayEnergy,
     getTargets,
@@ -301,6 +302,7 @@
   let driveSyncing = false;
   let lastDrivePullAt = 0;
   let lastLocalEditAt = 0;
+  let selectedTrendDay = null;
 
   const els = {
     authScreen: document.getElementById("auth-screen"),
@@ -330,9 +332,11 @@
     weekChart: document.getElementById("week-chart"),
     weekStats: document.getElementById("week-stats"),
     weekHitRate: document.getElementById("week-hit-rate"),
+    weekDayLog: document.getElementById("week-day-log"),
     monthChart: document.getElementById("month-chart"),
     monthStats: document.getElementById("month-stats"),
     monthHitRate: document.getElementById("month-hit-rate"),
+    monthDayLog: document.getElementById("month-day-log"),
     goalLegendMonth: document.getElementById("goal-legend-month"),
     modeNutrition: document.getElementById("mode-nutrition"),
     modeActivity: document.getElementById("mode-activity"),
@@ -1547,12 +1551,20 @@
     showQaReplaceChoices(type);
   }
 
+  function findHistoryEntry(kind, id) {
+    const key = String(id || "");
+    const hist = state?.history || {};
+    for (const day of Object.values(hist)) {
+      if (!day) continue;
+      const list = kind === "activity" ? day.activities : day.meals;
+      const entry = (list || []).find((item) => String(item.id) === key);
+      if (entry) return entry;
+    }
+    return null;
+  }
+
   function saveEntryAsQuickAction(type, id) {
-    const day = today();
-    const entry =
-      type === "activity"
-        ? day.activities.find((item) => item.id === id)
-        : day.meals.find((item) => item.id === id);
+    const entry = findHistoryEntry(type === "activity" ? "activity" : "meal", id);
     if (!entry) return;
     const action =
       type === "activity" ? quickActionFromActivity(entry) : quickActionFromMeal(entry);
@@ -1797,6 +1809,35 @@
     els.macros.innerHTML = rows + legend;
   }
 
+  function mealCardHtml(meal) {
+    const names = (meal.items || [])
+      .map((item) => escapeHtml(item.name))
+      .join(", ");
+
+    return `
+      <li class="meal-item${lastLoggedIds.meals.includes(meal.id) ? " is-new" : ""}">
+        <div class="meal-top">
+          <div>
+            <div class="meal-time">${formatTime(meal.loggedAt)}</div>
+            <div class="activity-name">${names || "Meal"}</div>
+          </div>
+          <div class="entry-actions">
+            <button type="button" class="meal-edit" data-qa-from-meal="${meal.id}">Add Shortcut</button>
+            <button type="button" class="meal-edit" data-edit-meal="${meal.id}">Edit</button>
+            <button type="button" class="meal-delete" data-delete-meal="${meal.id}">Delete</button>
+          </div>
+        </div>
+        <div class="meal-totals">
+          <span>${round1(meal.totalCalories)} kcal</span>
+          <span>P ${round1(meal.totalProtein)}g</span>
+          <span>F ${round1(meal.totalFat)}g</span>
+          <span>C ${round1(meal.totalCarbs)}g</span>
+          <span>Fib ${round1(meal.totalFiber)}g</span>
+        </div>
+      </li>
+    `;
+  }
+
   function renderMeals() {
     const meals = today().meals;
     els.emptyState.hidden = meals.length > 0;
@@ -1807,34 +1848,7 @@
     }
     els.mealList.innerHTML = [...meals]
       .reverse()
-      .map((meal) => {
-        const names = (meal.items || [])
-          .map((item) => escapeHtml(item.name))
-          .join(", ");
-
-        return `
-          <li class="meal-item${lastLoggedIds.meals.includes(meal.id) ? " is-new" : ""}">
-            <div class="meal-top">
-              <div>
-                <div class="meal-time">${formatTime(meal.loggedAt)}</div>
-                <div class="activity-name">${names || "Meal"}</div>
-              </div>
-              <div class="entry-actions">
-                <button type="button" class="meal-edit" data-qa-from-meal="${meal.id}">Add Shortcut</button>
-                <button type="button" class="meal-edit" data-edit-meal="${meal.id}">Edit</button>
-                <button type="button" class="meal-delete" data-delete-meal="${meal.id}">Delete</button>
-              </div>
-            </div>
-            <div class="meal-totals">
-              <span>${round1(meal.totalCalories)} kcal</span>
-              <span>P ${round1(meal.totalProtein)}g</span>
-              <span>F ${round1(meal.totalFat)}g</span>
-              <span>C ${round1(meal.totalCarbs)}g</span>
-              <span>Fib ${round1(meal.totalFiber)}g</span>
-            </div>
-          </li>
-        `;
-      })
+      .map((meal) => mealCardHtml(meal))
       .join("");
   }
 
@@ -1946,67 +1960,124 @@
     );
   }
 
+  function activityCardHtml(act) {
+    const items = Array.isArray(act.items) ? act.items : [];
+    const title = activityTitle(act);
+    const rows = (items.length
+      ? items
+      : [
+          {
+            name: act.text || act.summary || "Activity",
+            durationMin: 0,
+            caloriesBurned: act.totalCaloriesBurned,
+            intensity: "",
+          },
+        ]
+    )
+      .map((item) => {
+        const clean = stripAssumptionNotes(item.name || "") || item.name || "Activity";
+        const assumed = durationAssumption(item, act);
+        const mins = item.durationMin ? `${round1(item.durationMin)} min` : "";
+        const intensity = item.intensity || "";
+        const showName = clean && clean.toLowerCase() !== title.toLowerCase();
+        const bits = [showName ? escapeHtml(clean) : "", mins, intensity]
+          .filter(Boolean)
+          .join(" · ");
+        const chip = assumed
+          ? `<button type="button" class="assumption-chip" data-edit-activity="${act.id}">${escapeHtml(assumed)}</button>`
+          : "";
+        return `<li><div class="activity-line">${bits}${chip}</div></li>`;
+      })
+      .join("");
+
+    return `
+      <li class="meal-item activity-item${lastLoggedIds.activities.includes(act.id) ? " is-new" : ""}">
+        <div class="meal-top">
+          <div>
+            <div class="activity-name">${escapeHtml(title)}</div>
+            <div class="meal-time">${formatTime(act.loggedAt)}</div>
+          </div>
+          <div class="entry-actions">
+            <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Add Shortcut</button>
+            <button type="button" class="meal-edit" data-edit-activity="${act.id}">Edit</button>
+            <button type="button" class="meal-delete" data-delete-activity="${act.id}">Delete</button>
+          </div>
+        </div>
+        <ul class="meal-items">${rows}</ul>
+        <div class="activity-meta">${round1(act.totalCaloriesBurned || 0)} kcal burned</div>
+      </li>
+    `;
+  }
+
   function renderActivities() {
     const activities = today().activities;
     els.activityEmpty.hidden = activities.length > 0;
     els.activityList.innerHTML = [...activities]
       .reverse()
-      .map((act) => {
-        const items = Array.isArray(act.items) ? act.items : [];
-        const title = activityTitle(act);
-        const rows = (items.length
-          ? items
-          : [
-              {
-                name: act.text || act.summary || "Activity",
-                durationMin: 0,
-                caloriesBurned: act.totalCaloriesBurned,
-                intensity: "",
-              },
-            ]
-        )
-          .map((item) => {
-            const clean = stripAssumptionNotes(item.name || "") || item.name || "Activity";
-            const assumed = durationAssumption(item, act);
-            const mins = item.durationMin ? `${round1(item.durationMin)} min` : "";
-            const intensity = item.intensity || "";
-            const showName = clean && clean.toLowerCase() !== title.toLowerCase();
-            const bits = [showName ? escapeHtml(clean) : "", mins, intensity]
-              .filter(Boolean)
-              .join(" · ");
-            const chip = assumed
-              ? `<button type="button" class="assumption-chip" data-edit-activity="${act.id}">${escapeHtml(assumed)}</button>`
-              : "";
-            return `<li><div class="activity-line">${bits}${chip}</div></li>`;
-          })
-          .join("");
-
-        return `
-          <li class="meal-item activity-item${lastLoggedIds.activities.includes(act.id) ? " is-new" : ""}">
-            <div class="meal-top">
-              <div>
-                <div class="activity-name">${escapeHtml(title)}</div>
-                <div class="meal-time">${formatTime(act.loggedAt)}</div>
-              </div>
-              <div class="entry-actions">
-                <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Add Shortcut</button>
-                <button type="button" class="meal-edit" data-edit-activity="${act.id}">Edit</button>
-                <button type="button" class="meal-delete" data-delete-activity="${act.id}">Delete</button>
-              </div>
-            </div>
-            <ul class="meal-items">${rows}</ul>
-            <div class="activity-meta">${round1(act.totalCaloriesBurned || 0)} kcal burned</div>
-          </li>
-        `;
-      })
+      .map((act) => activityCardHtml(act))
       .join("");
   }
 
-  function renderTrend(span, chartEl, statsEl, hitEl, avgDays) {
+  function defaultTrendDayKey(series) {
+    for (let i = series.length - 1; i >= 0; i -= 1) {
+      const d = series[i];
+      if (d.logged || (d.activityCount || 0) > 0) return d.key;
+    }
+    return null;
+  }
+
+  function resolvedTrendDay(series) {
+    if (selectedTrendDay && series.some((d) => d.key === selectedTrendDay)) {
+      return selectedTrendDay;
+    }
+    return defaultTrendDayKey(series);
+  }
+
+  function renderDayLog(logEl, series) {
+    if (!logEl) return;
+    const key = resolvedTrendDay(series);
+    if (!key) {
+      logEl.innerHTML = `
+        <div class="meals-header">
+          <h2>Day log</h2>
+        </div>
+        <div class="empty-state">
+          <strong>Tap a day to see meals and activities</strong>
+          <p>Choose a bar on the chart above.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const day = peekDay(state, key);
+    const meals = [...(day.meals || [])].reverse();
+    const activities = [...(day.activities || [])].reverse();
+    const empty = !meals.length && !activities.length;
+    const energy = dayEnergy(day, state);
+    const mealHtml = meals.map((meal) => mealCardHtml(meal)).join("");
+    const actHtml = activities.map((act) => activityCardHtml(act)).join("");
+
+    logEl.innerHTML = `
+      <div class="meals-header">
+        <h2>${escapeHtml(formatWeightDate(key))}</h2>
+      </div>
+      <p class="day-log-meta">Food ${round1(energy.food.calories)} · Burn ${round1(energy.burned)} · Net ${round1(energy.netCalories)}</p>
+      ${
+        empty
+          ? `<div class="empty-state">
+              <strong>No meals or activities this day</strong>
+            </div>`
+          : `<ul class="meal-list">${mealHtml}${actHtml}</ul>`
+      }
+    `;
+  }
+
+  function renderTrend(span, chartEl, statsEl, hitEl, avgDays, logEl) {
     const t = targets();
     const series = trendSeries(state, span);
     const hits = series.filter((d) => d.hit).length;
     const logged = series.filter((d) => d.logged);
+    const selectedKey = resolvedTrendDay(series);
     hitEl.textContent = `${hits}/${span} hit`;
     hitEl.title = "Hit = calorie target (±10%) + deficit (net below TDEE)";
 
@@ -2015,10 +2086,11 @@
 
     chartEl.innerHTML = `
       <div class="chart-target" style="bottom:${targetPct}%"></div>
-      <div class="chart-bars">
+      <div class="chart-bars" role="list">
         ${series
           .map((d) => {
             const h = Math.max(2, (d.totals.calories / maxCal) * 100);
+            const selected = d.key === selectedKey;
             const cls = [
               "chart-bar",
               d.hit ? "hit" : "",
@@ -2027,11 +2099,16 @@
             ]
               .filter(Boolean)
               .join(" ");
+            const status = d.hit
+              ? "hit (target + deficit)"
+              : d.logged
+                ? "miss (need target + deficit)"
+                : "no meals";
             return `
-              <div class="chart-col" title="${d.key}: net ${round1(d.totals.calories)} · food ${round1(d.food.calories)} · burn ${round1(d.burned)} · ${d.hit ? "hit (target + deficit)" : d.logged ? "miss (need target + deficit)" : "no meals"}">
+              <button type="button" class="chart-col${selected ? " is-selected" : ""}" role="listitem" data-trend-day="${d.key}" aria-pressed="${selected ? "true" : "false"}" aria-label="${d.label} ${d.key}: net ${round1(d.totals.calories)}, food ${round1(d.food.calories)}, burn ${round1(d.burned)}, ${status}${selected ? ", selected" : ""}" title="${d.key}: net ${round1(d.totals.calories)} · food ${round1(d.food.calories)} · burn ${round1(d.burned)} · ${status}">
                 <div class="${cls}" style="height:${h}%"></div>
                 <div class="chart-label">${d.label}</div>
-              </div>
+              </button>
             `;
           })
           .join("")}
@@ -2059,12 +2136,14 @@
       <div class="stat"><span>Avg burn</span><strong>${series.some((d) => d.burned) ? round1(avgBurn) : "—"}</strong></div>
       <div class="stat"><span>Total burn</span><strong>${round1(totalBurn)}</strong></div>
     `;
+
+    renderDayLog(logEl, series);
   }
 
   function renderTrends() {
     const t = targets();
-    renderTrend(7, els.weekChart, els.weekStats, els.weekHitRate, 7);
-    renderTrend(30, els.monthChart, els.monthStats, els.monthHitRate, 28);
+    renderTrend(7, els.weekChart, els.weekStats, els.weekHitRate, 7, els.weekDayLog);
+    renderTrend(30, els.monthChart, els.monthStats, els.monthHitRate, 28, els.monthDayLog);
     const maint = window.MMC.getMaintenanceKcal(state);
     els.goalLegendMonth.textContent =
       maint != null
@@ -2400,7 +2479,7 @@
   }
 
   function openEditMeal(id) {
-    const meal = today().meals.find((m) => m.id === id);
+    const meal = findHistoryEntry("meal", id);
     if (!meal) return;
     editTarget = { type: "meal", id };
     els.editTitle.textContent = "Edit meal";
@@ -2437,7 +2516,7 @@
   }
 
   function openEditActivity(id) {
-    const act = today().activities.find((a) => a.id === id);
+    const act = findHistoryEntry("activity", id);
     if (!act) return;
     editTarget = { type: "activity", id };
     els.editTitle.textContent = "Edit activity";
@@ -2559,7 +2638,7 @@
     setHint(els.editHint, "");
 
     if (editTarget.type === "meal") {
-      const meal = today().meals.find((m) => m.id === editTarget.id);
+      const meal = findHistoryEntry("meal", editTarget.id);
       if (!meal) return;
       const edits = readMealEditsFromForm();
       if (!edits.items.length) {
@@ -2574,7 +2653,7 @@
     }
 
     if (editTarget.type === "activity") {
-      const act = today().activities.find((a) => a.id === editTarget.id);
+      const act = findHistoryEntry("activity", editTarget.id);
       if (!act) return;
       const edits = readActivityEditsFromForm();
       Object.assign(act, edits);
@@ -2625,7 +2704,7 @@
           text: raw,
           context: buildPersonContext(),
         });
-        const meal = today().meals.find((m) => m.id === editTarget.id);
+        const meal = findHistoryEntry("meal", editTarget.id);
         if (!meal) return;
         Object.assign(meal, { rawText: raw, ...parsed });
         persist();
@@ -2640,7 +2719,7 @@
           text: raw,
           context: buildPersonContext(),
         });
-        const act = today().activities.find((a) => a.id === editTarget.id);
+        const act = findHistoryEntry("activity", editTarget.id);
         if (!act) return;
         Object.assign(act, { rawText: raw, text: raw, ...parsed });
         persist();
@@ -3367,37 +3446,60 @@
       }
     });
 
-    els.mealList.addEventListener("click", (e) => {
-      const saveBtn = e.target.closest("[data-qa-from-meal]");
-      if (saveBtn) {
-        saveEntryAsQuickAction("nutrition", saveBtn.getAttribute("data-qa-from-meal"));
+    function handleEntryListClick(e) {
+      const saveMeal = e.target.closest("[data-qa-from-meal]");
+      if (saveMeal) {
+        saveEntryAsQuickAction("nutrition", saveMeal.getAttribute("data-qa-from-meal"));
         return;
       }
-      const editBtn = e.target.closest("[data-edit-meal]");
-      if (editBtn) {
-        openEditMeal(editBtn.getAttribute("data-edit-meal"));
+      const saveAct = e.target.closest("[data-qa-from-activity]");
+      if (saveAct) {
+        saveEntryAsQuickAction("activity", saveAct.getAttribute("data-qa-from-activity"));
         return;
       }
-      const btn = e.target.closest("[data-delete-meal]");
-      if (!btn) return;
-      deleteMeal(btn.getAttribute("data-delete-meal"));
-    });
+      const editMeal = e.target.closest("[data-edit-meal]");
+      if (editMeal) {
+        openEditMeal(editMeal.getAttribute("data-edit-meal"));
+        return;
+      }
+      const editAct = e.target.closest("[data-edit-activity]");
+      if (editAct) {
+        openEditActivity(editAct.getAttribute("data-edit-activity"));
+        return;
+      }
+      const delMeal = e.target.closest("[data-delete-meal]");
+      if (delMeal) {
+        deleteMeal(delMeal.getAttribute("data-delete-meal"));
+        return;
+      }
+      const delAct = e.target.closest("[data-delete-activity]");
+      if (delAct) {
+        deleteActivity(delAct.getAttribute("data-delete-activity"));
+      }
+    }
 
-    els.activityList.addEventListener("click", (e) => {
-      const saveBtn = e.target.closest("[data-qa-from-activity]");
-      if (saveBtn) {
-        saveEntryAsQuickAction("activity", saveBtn.getAttribute("data-qa-from-activity"));
+    function handleTrendDayClick(e) {
+      const col = e.target.closest("[data-trend-day]");
+      if (!col) return;
+      const key = col.getAttribute("data-trend-day");
+      if (!key) return;
+      if (key === selectedTrendDay) {
+        const log = col.closest(".view")?.querySelector(".day-log");
+        log?.scrollIntoView({ behavior: "smooth", block: "nearest" });
         return;
       }
-      const editBtn = e.target.closest("[data-edit-activity]");
-      if (editBtn) {
-        openEditActivity(editBtn.getAttribute("data-edit-activity"));
-        return;
-      }
-      const btn = e.target.closest("[data-delete-activity]");
-      if (!btn) return;
-      deleteActivity(btn.getAttribute("data-delete-activity"));
-    });
+      selectedTrendDay = key;
+      renderTrends();
+      const log = col.closest(".view")?.querySelector(".day-log");
+      log?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+
+    els.mealList.addEventListener("click", handleEntryListClick);
+    els.activityList.addEventListener("click", handleEntryListClick);
+    els.weekDayLog?.addEventListener("click", handleEntryListClick);
+    els.monthDayLog?.addEventListener("click", handleEntryListClick);
+    els.weekChart?.addEventListener("click", handleTrendDayClick);
+    els.monthChart?.addEventListener("click", handleTrendDayClick);
 
     els.weightBtn.addEventListener("click", handleWeightLog);
     els.weightInput.addEventListener("keydown", (e) => {
