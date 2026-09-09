@@ -166,9 +166,18 @@
   ];
 
   const LOG_COPY = {
-    label: "Log food or activity",
-    placeholder:
-      'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter, 30 min walk"',
+    nutrition: {
+      label: "Log food or activity",
+      placeholder:
+        'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter"',
+      jump: "＋ Log food",
+    },
+    activity: {
+      label: "Log a workout",
+      placeholder:
+        'Minutes help — e.g. "45 min brisk walk", "1.5 mile walk with 40 lb vest", or "Upper body lift, 50 min"',
+      jump: "＋ Log activity",
+    },
   };
 
   function glossaryEntry(id) {
@@ -429,6 +438,8 @@
   let setupIndex = 0;
   let qaSexPick = "";
   let lastMacroResult = null;
+  let energyDetailsOpen = false;
+  let lastLoggedIds = { meals: [], activities: [] };
   let tourIndex = 0;
   const TOUR_STEPS = [
     {
@@ -451,7 +462,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Streak and remaining calories stay up top. Goal is what you planned to eat. TDEE is maintenance — the number deficit is measured against. The teal line is TDEE plus today’s workouts.",
+      body: "Log first, then glance at calories left and the bar. Open Goal, TDEE & breakdown if you want the tiles and jargon.",
       target: "#daily-tracker",
     },
     {
@@ -570,16 +581,40 @@
     el.classList.toggle("ok", ok);
   }
 
+  function positionToast() {
+    if (!els.toast || els.toast.hidden) return;
+    const nearLog =
+      els.logPanel &&
+      !els.logPanel.hidden &&
+      els.logBtn &&
+      (currentMode === "nutrition" || currentMode === "activity");
+    els.toast.classList.toggle("near-cta", Boolean(nearLog));
+    if (!nearLog) {
+      els.toast.style.top = "";
+      return;
+    }
+    const r = els.logBtn.getBoundingClientRect();
+    const gap = 10;
+    const estimatedH = els.toast.offsetHeight || 48;
+    const below = r.bottom + gap + estimatedH + 12 < window.innerHeight;
+    els.toast.style.top = below
+      ? `${r.bottom + gap}px`
+      : `${Math.max(12, r.top - estimatedH - gap)}px`;
+  }
+
   function showToast(message, ok = true) {
     if (!els.toast || !message) return;
     els.toast.hidden = false;
     els.toast.textContent = message;
     els.toast.classList.toggle("ok", ok);
     els.toast.classList.toggle("err", !ok);
+    positionToast();
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       els.toast.hidden = true;
-    }, 2800);
+      els.toast.style.top = "";
+      els.toast.classList.remove("near-cta");
+    }, 3200);
   }
 
   function hasHostedAi() {
@@ -765,10 +800,16 @@
     }
   }
 
+  function logCopyForMode() {
+    return LOG_COPY[currentMode] || LOG_COPY.nutrition;
+  }
+
   function syncLogPanel() {
     if (currentMode === "weight" || currentMode === "settings") return;
-    els.logLabel.textContent = LOG_COPY.label;
-    els.logInput.placeholder = LOG_COPY.placeholder;
+    const copy = logCopyForMode();
+    els.logLabel.textContent = copy.label;
+    els.logInput.placeholder = copy.placeholder;
+    if (els.logJumpBtn) els.logJumpBtn.textContent = copy.jump;
     if (!logBusy) {
       const text = els.logBtn.querySelector(".btn-text");
       if (text) text.textContent = logButtonLabel();
@@ -776,10 +817,24 @@
     syncAiGate();
   }
 
+  function updateLogJump() {
+    if (!els.logJumpBtn) return;
+    const showFullLog =
+      (currentMode === "nutrition" || currentMode === "activity") &&
+      els.logPanel &&
+      !els.logPanel.hidden;
+    if (!showFullLog) {
+      els.logJumpBtn.hidden = true;
+      return;
+    }
+    const rect = els.logPanel.getBoundingClientRect();
+    els.logJumpBtn.hidden = rect.bottom > 88;
+  }
+
   function updateLogVisibility() {
     const showFullLog = currentMode === "nutrition" || currentMode === "activity";
     els.logPanel.hidden = !showFullLog;
-    if (els.logJumpBtn) els.logJumpBtn.hidden = true;
+    updateLogJump();
   }
 
   function setMode(mode) {
@@ -1182,9 +1237,11 @@
 
   function activeQuickActions() {
     const qa = sanitizeQuickActions(state?.quickActions);
-    return [...qa.nutrition, ...qa.activity].filter(
-      (item) => item.label && (item.parsed || item.prompt)
-    );
+    const ready = (item) => item.label && (item.parsed || item.prompt);
+    if (currentMode === "activity") {
+      return qa.activity.filter(ready);
+    }
+    return [...qa.nutrition, ...qa.activity].filter(ready);
   }
 
   function renderQuickActions() {
@@ -1230,22 +1287,40 @@
 
   function commitMealLog(parsed, rawText) {
     const { source, ...meal } = parsed;
+    const id = uid();
     today().meals.push({
-      id: uid(),
+      id,
       loggedAt: Date.now(),
       rawText: source || rawText,
       ...meal,
     });
+    lastLoggedIds.meals.push(id);
+    return id;
   }
 
   function commitActivityLog(parsed, rawText) {
     const { source, ...activity } = parsed;
+    const id = uid();
     today().activities.push({
-      id: uid(),
+      id,
       loggedAt: Date.now(),
       rawText: source || rawText,
       text: source || rawText,
       ...activity,
+    });
+    lastLoggedIds.activities.push(id);
+    return id;
+  }
+
+  function focusNewEntry(kind) {
+    const list = kind === "activity" ? els.activityList : els.mealList;
+    const card = list?.querySelector(".is-new");
+    if (!card) return;
+    requestAnimationFrame(() => {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("is-highlight");
+      window.setTimeout(() => card.classList.remove("is-highlight"), 2200);
+      positionToast();
     });
   }
 
@@ -1285,19 +1360,24 @@
     if (action.parsed) {
       const parsed = clonePayload(action.parsed);
       const raw = action.prompt || action.label;
-      if (isActivityPayload(parsed)) {
+      lastLoggedIds = { meals: [], activities: [] };
+      const kind = isActivityPayload(parsed) ? "activity" : "food";
+      if (kind === "activity" && !confirmIfDuplicateActivity(parsed)) {
+        setHint(els.logHint, "Duplicate activity not logged.");
+        return;
+      }
+      if (kind === "activity") {
         commitActivityLog(parsed, raw);
-        persist();
-        revealLoggedKind("activity");
       } else {
         commitMealLog(parsed, raw);
-        persist();
-        revealLoggedKind("food");
       }
+      persist();
+      revealLoggedKind(kind);
       renderAll();
       const msg = `Logged ${action.label}`;
       setHint(els.logHint, msg, true);
       showToast(msg, true);
+      focusNewEntry(kind);
       return;
     }
     handleLog(action.prompt);
@@ -1588,12 +1668,7 @@
 
     const showMark = burned > 0;
     const maint = energy.maintenance;
-    const valueRight =
-      maint != null
-        ? `goal ${t.calories} · TDEE ${round1(maint)}`
-        : showMark
-          ? `goal ${t.calories} · budget ${round1(budget)}`
-          : `of ${t.calories}`;
+    const valueRight = `of ${t.calories}`;
 
     const tdeeCell =
       maint != null
@@ -1612,11 +1687,6 @@
           <div class="energy-hero-value ${remClass}">${amount}</div>
           <div class="energy-hero-label">${status}</div>
         </div>
-        <div class="energy-hero-meta">
-          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
-          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
-          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
-        </div>
       </div>
       <div class="energy-budget">
         ${budgetBar({
@@ -1631,23 +1701,35 @@
           <span>${round1(foodKcal)} eaten</span>
           <span>${valueRight}</span>
         </div>
+      </div>
+      <details class="energy-details" ${energyDetailsOpen ? "open" : ""}>
+        <summary>Goal, TDEE &amp; breakdown</summary>
+        <div class="energy-hero-meta energy-hero-meta-details">
+          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
+          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
+          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
+        </div>
         ${
           cutting
             ? `<p class="budget-legend">White line is your daily goal. Teal line is TDEE plus today’s burn — eat up to there and you’re still in a deficit.</p>`
             : ""
         }
-      </div>
-      <div class="energy-strip">
-        <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
-        <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
-        <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
-      </div>
-      ${
-        tdeeCell || deficitCell
-          ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
-          : ""
-      }
+        <div class="energy-strip">
+          <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
+          <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
+          <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
+        </div>
+        ${
+          tdeeCell || deficitCell
+            ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
+            : ""
+        }
+      </details>
     `;
+    const details = els.energyCard.querySelector(".energy-details");
+    details?.addEventListener("toggle", () => {
+      energyDetailsOpen = details.open;
+    });
   }
 
   function renderMacros() {
@@ -1719,13 +1801,13 @@
     }
     els.mealList.innerHTML = [...meals]
       .reverse()
-      .map((meal, index) => {
+      .map((meal) => {
         const names = (meal.items || [])
           .map((item) => escapeHtml(item.name))
           .join(", ");
 
         return `
-          <li class="meal-item${index === 0 ? " is-new" : ""}">
+          <li class="meal-item${lastLoggedIds.meals.includes(meal.id) ? " is-new" : ""}">
             <div class="meal-top">
               <div>
                 <div class="meal-time">${formatTime(meal.loggedAt)}</div>
@@ -1750,6 +1832,114 @@
       .join("");
   }
 
+  function stripAssumptionNotes(name) {
+    return String(name || "")
+      .replace(/\(([^)]*assumed[^)]*)\)/gi, (_, inner) => {
+        const facts = inner
+          .replace(/,?\s*assumed[^,]*/gi, "")
+          .replace(/^[\s,]+|[\s,]+$/g, "")
+          .trim();
+        return facts;
+      })
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  function formatAssumptionLabel(raw) {
+    const text = String(raw || "").trim();
+    const mins = text.match(/(\d+(?:\.\d+)?)\s*min/i);
+    if (mins) return `${mins[1]} min assumed`;
+    return text.replace(/^\(?|\)$/g, "").trim();
+  }
+
+  function assumptionNotesFromName(name) {
+    return [...String(name || "").matchAll(/\(([^)]*assumed[^)]*)\)/gi)].map((m) =>
+      formatAssumptionLabel(m[1])
+    );
+  }
+
+  function textHasDuration(text) {
+    return /\b\d+(?:\.\d+)?\s*(min|mins|minute|minutes|hr|hrs|hour|hours)\b/i.test(
+      String(text || "")
+    );
+  }
+
+  function durationAssumption(item, act) {
+    const fromName = assumptionNotesFromName(item?.name || "");
+    if (fromName.length) return fromName[0];
+    const mins = Number(item?.durationMin) || 0;
+    const source = act?.rawText || act?.text || "";
+    if (mins && !textHasDuration(source)) return `${round1(mins)} min assumed`;
+    if (!mins) return "Duration assumed";
+    return "";
+  }
+
+  function activityTitle(act) {
+    const label = String(act?.label || "").trim();
+    if (label && label.toLowerCase() !== "activity") return label;
+    const first = act?.items?.[0]?.name;
+    const cleaned = stripAssumptionNotes(first || "");
+    if (cleaned) return cleaned;
+    const summary = stripAssumptionNotes(act?.summary || act?.text || "");
+    return summary || "Activity";
+  }
+
+  function activityScanKey(act) {
+    const raw = [
+      act?.label || "",
+      act?.summary || "",
+      act?.text || "",
+      act?.rawText || "",
+      ...(Array.isArray(act?.items) ? act.items.map((item) => item.name || "") : []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    const miles = raw.match(/(\d+(?:\.\d+)?)\s*(?:mi(?:le)?s?)\b/);
+    let kind = "";
+    if (/\b(walk|walking)\b/.test(raw)) kind = "walk";
+    else if (/\b(run|running|jog|jogging)\b/.test(raw)) kind = "run";
+    else if (/\b(lift|weights|strength|workout)\b/.test(raw)) kind = "lift";
+    else {
+      kind = stripAssumptionNotes(act?.items?.[0]?.name || act?.label || act?.text || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+    const mins = (Array.isArray(act?.items) ? act.items : []).reduce(
+      (n, item) => n + (Number(item.durationMin) || 0),
+      0
+    );
+    return {
+      kind,
+      miles: miles ? Number(miles[1]) : null,
+      mins,
+    };
+  }
+
+  function isNearDuplicateActivity(a, b) {
+    const x = activityScanKey(a);
+    const y = activityScanKey(b);
+    if (!x.kind || !y.kind || x.kind !== y.kind) return false;
+    if (x.miles != null && y.miles != null && x.miles !== y.miles) return false;
+    if (x.mins && y.mins && Math.abs(x.mins - y.mins) > 5) return false;
+    return true;
+  }
+
+  function findNearDuplicateActivity(parsed) {
+    return today().activities.find((act) => isNearDuplicateActivity(act, parsed)) || null;
+  }
+
+  function confirmIfDuplicateActivity(parsed) {
+    const hit = findNearDuplicateActivity(parsed);
+    if (!hit) return true;
+    const title = activityTitle(hit);
+    const when = formatTime(hit.loggedAt);
+    const kcal = round1(hit.totalCaloriesBurned || 0);
+    return window.confirm(
+      `You already logged ${title} today at ${when} (${kcal} kcal burned). Log another?`
+    );
+  }
+
   function renderActivities() {
     const activities = today().activities;
     els.activityEmpty.hidden = activities.length > 0;
@@ -1757,27 +1947,48 @@
       .reverse()
       .map((act) => {
         const items = Array.isArray(act.items) ? act.items : [];
-        const detail =
-          items.length > 0
-            ? items
-                .map((item) => {
-                  const mins = item.durationMin ? `${round1(item.durationMin)} min · ` : "";
-                  return `<li>${escapeHtml(item.name)} <span>${mins}${round1(item.caloriesBurned)} kcal · ${escapeHtml(item.intensity || "moderate")}</span></li>`;
-                })
-                .join("")
-            : `<li>${escapeHtml(act.text || act.summary || "Activity")}</li>`;
+        const title = activityTitle(act);
+        const rows = (items.length
+          ? items
+          : [
+              {
+                name: act.text || act.summary || "Activity",
+                durationMin: 0,
+                caloriesBurned: act.totalCaloriesBurned,
+                intensity: "",
+              },
+            ]
+        )
+          .map((item) => {
+            const clean = stripAssumptionNotes(item.name || "") || item.name || "Activity";
+            const assumed = durationAssumption(item, act);
+            const mins = item.durationMin ? `${round1(item.durationMin)} min` : "";
+            const intensity = item.intensity || "";
+            const showName = clean && clean.toLowerCase() !== title.toLowerCase();
+            const bits = [showName ? escapeHtml(clean) : "", mins, intensity]
+              .filter(Boolean)
+              .join(" · ");
+            const chip = assumed
+              ? `<button type="button" class="assumption-chip" data-edit-activity="${act.id}">${escapeHtml(assumed)}</button>`
+              : "";
+            return `<li><div class="activity-line">${bits}${chip}</div></li>`;
+          })
+          .join("");
 
         return `
-          <li class="meal-item activity-item">
+          <li class="meal-item activity-item${lastLoggedIds.activities.includes(act.id) ? " is-new" : ""}">
             <div class="meal-top">
-              <div class="meal-time">${formatTime(act.loggedAt)}</div>
+              <div>
+                <div class="activity-name">${escapeHtml(title)}</div>
+                <div class="meal-time">${formatTime(act.loggedAt)}</div>
+              </div>
               <div class="entry-actions">
                 <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Add Shortcut</button>
                 <button type="button" class="meal-edit" data-edit-activity="${act.id}">Edit</button>
                 <button type="button" class="meal-delete" data-delete-activity="${act.id}">Delete</button>
               </div>
             </div>
-            <ul class="meal-items">${detail}</ul>
+            <ul class="meal-items">${rows}</ul>
             <div class="activity-meta">${round1(act.totalCaloriesBurned || 0)} kcal burned</div>
           </li>
         `;
@@ -2023,6 +2234,7 @@
     syncAiGate();
     updateLogVisibility();
     renderQuickActions();
+    updateLogJump();
   }
 
   async function handleLog(presetText) {
@@ -2051,15 +2263,32 @@
         text,
         context: buildPersonContext(),
       });
+      lastLoggedIds = { meals: [], activities: [] };
       (result.meals || []).forEach((meal) => commitMealLog(meal, text));
-      (result.activities || []).forEach((act) => commitActivityLog(act, text));
+      const keptActs = [];
+      for (const act of result.activities || []) {
+        if (!confirmIfDuplicateActivity(act)) continue;
+        keptActs.push(act);
+        commitActivityLog(act, text);
+      }
+      if (!(result.meals || []).length && !keptActs.length) {
+        setHint(els.logHint, "Duplicate activity not logged.");
+        return;
+      }
       persist();
       if (!fromQuick) els.logInput.value = "";
-      revealLoggedKind(result.kind);
+      const kind =
+        keptActs.length && !(result.meals || []).length ? "activity" : result.kind;
+      revealLoggedKind(kind);
       renderAll();
-      const msg = logMessage(result);
+      const msg = logMessage({
+        meals: result.meals || [],
+        activities: keptActs,
+        kind,
+      });
       setHint(els.logHint, msg, true);
       showToast(msg, true);
+      focusNewEntry(kind === "activity" ? "activity" : "food");
     } catch (err) {
       const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
       const msg = err.message || `Failed to parse with ${providerLabel}.`;
@@ -2240,7 +2469,7 @@
       <label>Original description
         <textarea id="edit-raw" class="field-input">${escapeHtml(act.rawText || act.text || "")}</textarea>
       </label>
-      <div class="field-help">Edit burn details below, or re-parse the description with AI.</div>
+      <div class="field-help">Assumed minutes live here — change duration if the guess was wrong, or re-parse the description with AI.</div>
       <div id="edit-items">${itemsHtml}</div>
     `;
     setHint(els.editHint, "");
@@ -3055,10 +3284,14 @@
       applyTheme(btn.getAttribute("data-theme-id"), true);
     });
     els.logJumpBtn?.addEventListener("click", () => {
-      setView("today");
+      if (currentMode !== "nutrition" && currentMode !== "activity") {
+        setMode("nutrition");
+      }
+      if (currentMode === "nutrition") setView("today");
       updateLogVisibility();
       syncLogPanel();
       renderQuickActions();
+      els.logPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
       els.logInput.focus();
     });
 
@@ -3310,6 +3543,7 @@
       true
     );
     window.addEventListener("resize", () => {
+      updateLogJump();
       if (tourIsOpen()) layoutTourStep();
       if (els.glossaryTip && !els.glossaryTip.hidden) {
         const id = els.glossaryTip.getAttribute("data-glossary-id");
@@ -3317,6 +3551,14 @@
         if (btn) positionGlossaryTip(btn);
       }
     });
+    window.addEventListener(
+      "scroll",
+      () => {
+        updateLogJump();
+        if (els.toast && !els.toast.hidden) positionToast();
+      },
+      { passive: true }
+    );
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         window.MMC.flushDrivePush?.(true);

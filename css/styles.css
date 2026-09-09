@@ -397,7 +397,7 @@ button {
   background: var(--bg);
   padding: 0.85rem 0.9rem;
   resize: vertical;
-  min-height: 5.5rem;
+  min-height: 4.25rem;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -547,6 +547,11 @@ button {
 
 .log-hint.ok {
   color: var(--green);
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: var(--green-soft);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  font-weight: 650;
 }
 
 .meals-header {
@@ -857,17 +862,22 @@ button {
 }
 
 .log-jump {
+  position: sticky;
+  top: 3.55rem;
+  z-index: 19;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 1rem;
   border-radius: var(--radius);
   border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, var(--accent));
   color: var(--amber);
   font-weight: 650;
   font-size: 0.9rem;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -892,6 +902,11 @@ button {
   font-weight: 600;
   color: var(--text);
   animation: rise 0.28s ease both;
+  pointer-events: none;
+}
+
+.toast.near-cta {
+  bottom: auto;
 }
 
 .toast.ok {
@@ -906,6 +921,23 @@ button {
 
 .meal-item.is-new {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.meal-item.is-highlight {
+  animation: card-flash 1.6s ease;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+@keyframes card-flash {
+  0% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+  }
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+    background: var(--bg);
+  }
 }
 
 .empty-state[hidden],
@@ -1155,7 +1187,7 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.55rem;
 }
 
 .energy-hero-value {
@@ -1200,6 +1232,13 @@ button {
   text-align: right;
   flex-shrink: 0;
   padding-bottom: 0.15rem;
+}
+
+.energy-hero-meta-details {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.35rem 0 0.15rem;
 }
 
 .energy-hero-tdee {
@@ -1284,10 +1323,79 @@ button {
   color: var(--red);
 }
 
+.energy-details {
+  margin-top: 0.15rem;
+}
+
+.energy-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.15rem 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.energy-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.energy-details summary::after {
+  content: "▾";
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.energy-details[open] summary::after {
+  transform: rotate(-180deg);
+}
+
+.energy-details .energy-strip {
+  margin-top: 0.45rem;
+}
+
+.energy-details .budget-legend {
+  margin-top: 0.55rem;
+}
+
 .activity-name {
-  margin-top: 0.25rem;
-  font-size: 0.9rem;
-  font-weight: 500;
+  margin-top: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.activity-item .meal-time {
+  margin-top: 0.2rem;
+}
+
+.activity-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.assumption-chip {
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--amber);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 650;
+  min-height: 1.7rem;
+}
+
+.assumption-chip:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .activity-meta {
