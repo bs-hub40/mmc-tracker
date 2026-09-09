@@ -397,7 +397,7 @@ button {
   background: var(--bg);
   padding: 0.85rem 0.9rem;
   resize: vertical;
-  min-height: 5.5rem;
+  min-height: 4.25rem;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -857,17 +857,22 @@ button {
 }
 
 .log-jump {
+  position: sticky;
+  top: 3.55rem;
+  z-index: 19;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0.85rem 1rem;
+  padding: 0.7rem 1rem;
   border-radius: var(--radius);
   border: 1px dashed color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, var(--accent));
   color: var(--amber);
   font-weight: 650;
   font-size: 0.9rem;
+  backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -1282,6 +1287,47 @@ button {
 
 .energy-strip .surplus strong {
   color: var(--red);
+}
+
+.energy-details {
+  margin-top: 0.15rem;
+}
+
+.energy-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.15rem 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.energy-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.energy-details summary::after {
+  content: "▾";
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.energy-details[open] summary::after {
+  transform: rotate(-180deg);
+}
+
+.energy-details .energy-strip {
+  margin-top: 0.45rem;
+}
+
+.energy-details .budget-legend {
+  margin-top: 0.55rem;
 }
 
 .activity-name {

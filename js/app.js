@@ -429,6 +429,7 @@
   let setupIndex = 0;
   let qaSexPick = "";
   let lastMacroResult = null;
+  let energyDetailsOpen = false;
   let tourIndex = 0;
   const TOUR_STEPS = [
     {
@@ -451,7 +452,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Streak and remaining calories stay up top. Goal is what you planned to eat. TDEE is maintenance — the number deficit is measured against. The teal line is TDEE plus today’s workouts.",
+      body: "Log first, then glance at remaining calories under the box. Goal is what you planned to eat. Open Energy details for TDEE, tiles, and the bar legend.",
       target: "#daily-tracker",
     },
     {
@@ -776,10 +777,24 @@
     syncAiGate();
   }
 
+  function updateLogJump() {
+    if (!els.logJumpBtn) return;
+    const showFullLog =
+      (currentMode === "nutrition" || currentMode === "activity") &&
+      els.logPanel &&
+      !els.logPanel.hidden;
+    if (!showFullLog) {
+      els.logJumpBtn.hidden = true;
+      return;
+    }
+    const rect = els.logPanel.getBoundingClientRect();
+    els.logJumpBtn.hidden = rect.bottom > 88;
+  }
+
   function updateLogVisibility() {
     const showFullLog = currentMode === "nutrition" || currentMode === "activity";
     els.logPanel.hidden = !showFullLog;
-    if (els.logJumpBtn) els.logJumpBtn.hidden = true;
+    updateLogJump();
   }
 
   function setMode(mode) {
@@ -1631,23 +1646,30 @@
           <span>${round1(foodKcal)} eaten</span>
           <span>${valueRight}</span>
         </div>
+      </div>
+      <details class="energy-details" ${energyDetailsOpen ? "open" : ""}>
+        <summary>Energy details</summary>
         ${
           cutting
             ? `<p class="budget-legend">White line is your daily goal. Teal line is TDEE plus today’s burn — eat up to there and you’re still in a deficit.</p>`
             : ""
         }
-      </div>
-      <div class="energy-strip">
-        <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
-        <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
-        <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
-      </div>
-      ${
-        tdeeCell || deficitCell
-          ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
-          : ""
-      }
+        <div class="energy-strip">
+          <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
+          <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
+          <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
+        </div>
+        ${
+          tdeeCell || deficitCell
+            ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
+            : ""
+        }
+      </details>
     `;
+    const details = els.energyCard.querySelector(".energy-details");
+    details?.addEventListener("toggle", () => {
+      energyDetailsOpen = details.open;
+    });
   }
 
   function renderMacros() {
@@ -2023,6 +2045,7 @@
     syncAiGate();
     updateLogVisibility();
     renderQuickActions();
+    updateLogJump();
   }
 
   async function handleLog(presetText) {
@@ -3055,10 +3078,14 @@
       applyTheme(btn.getAttribute("data-theme-id"), true);
     });
     els.logJumpBtn?.addEventListener("click", () => {
-      setView("today");
+      if (currentMode !== "nutrition" && currentMode !== "activity") {
+        setMode("nutrition");
+      }
+      if (currentMode === "nutrition") setView("today");
       updateLogVisibility();
       syncLogPanel();
       renderQuickActions();
+      els.logPanel?.scrollIntoView({ behavior: "smooth", block: "start" });
       els.logInput.focus();
     });
 
@@ -3310,6 +3337,7 @@
       true
     );
     window.addEventListener("resize", () => {
+      updateLogJump();
       if (tourIsOpen()) layoutTourStep();
       if (els.glossaryTip && !els.glossaryTip.hidden) {
         const id = els.glossaryTip.getAttribute("data-glossary-id");
@@ -3317,6 +3345,7 @@
         if (btn) positionGlossaryTip(btn);
       }
     });
+    window.addEventListener("scroll", updateLogJump, { passive: true });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         window.MMC.flushDrivePush?.(true);
