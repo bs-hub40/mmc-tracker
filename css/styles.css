@@ -1202,6 +1202,13 @@ button {
   padding-bottom: 0.15rem;
 }
 
+.energy-hero-tdee {
+  margin-top: 0.2rem;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
 .energy-hero-burn {
   margin-top: 0.2rem;
   color: var(--fiber);
@@ -1236,13 +1243,9 @@ button {
   gap: 0.4rem;
 }
 
-.energy-strip.has-deficit {
-  grid-template-columns: repeat(4, 1fr);
-}
-
-.energy-strip.has-deficit span {
-  font-size: 0.62rem;
-  padding: 0.45rem 0.12rem;
+.energy-strip-tdee {
+  margin-top: 0.4rem;
+  grid-template-columns: 1fr 1fr;
 }
 
 .energy-strip span {
@@ -1267,6 +1270,10 @@ button {
 
 .energy-strip .burn strong {
   color: var(--fiber);
+}
+
+.energy-strip .tdee strong {
+  color: var(--text);
 }
 
 .energy-strip .deficit strong {
@@ -2077,6 +2084,7 @@ button {
 
 .energy-hero-meta .info-i,
 .energy-hero-burn .info-i,
+.energy-hero-tdee .info-i,
 .energy-hero-deficit .info-i,
 .energy-strip .info-i,
 .trend-note .info-i,

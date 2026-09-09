@@ -451,7 +451,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Streak and remaining calories stay up top while you log. The teal line is the last calorie you can eat and still be in a deficit. Past the white goal line is extra from activity.",
+      body: "Streak and remaining calories stay up top. Goal is what you planned to eat. TDEE is maintenance — the number deficit is measured against. The teal line is TDEE plus today’s workouts.",
       target: "#daily-tracker",
     },
     {
@@ -1587,17 +1587,23 @@
     }
 
     const showMark = burned > 0;
-    const valueRight = cutting
-      ? `goal ${t.calories} · deficit ${round1(deficitUntil)}`
-      : showMark
-        ? `goal ${t.calories} · budget ${round1(budget)}`
-        : `of ${t.calories}`;
+    const maint = energy.maintenance;
+    const valueRight =
+      maint != null
+        ? `goal ${t.calories} · TDEE ${round1(maint)}`
+        : showMark
+          ? `goal ${t.calories} · budget ${round1(budget)}`
+          : `of ${t.calories}`;
 
+    const tdeeCell =
+      maint != null
+        ? `<span class="tdee">TDEE ${infoI("tdee")}<strong>${round1(maint)}</strong></span>`
+        : "";
     const deficitCell =
       energy.deficit != null
         ? energy.deficit >= 0
-          ? `<span class="deficit">Deficit<strong>${round1(energy.deficit)}</strong></span>`
-          : `<span class="surplus">Surplus<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
+          ? `<span class="deficit">Deficit ${infoI("deficit")}<strong>${round1(energy.deficit)}</strong></span>`
+          : `<span class="surplus">Surplus ${infoI("surplus")}<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
         : "";
 
     els.energyCard.innerHTML = `
@@ -1608,8 +1614,8 @@
         </div>
         <div class="energy-hero-meta">
           <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
+          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
           ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
-          ${cutting ? `<div class="energy-hero-deficit">Still in deficit to ${round1(deficitUntil)} ${infoI("deficit")}</div>` : ""}
         </div>
       </div>
       <div class="energy-budget">
@@ -1627,22 +1633,20 @@
         </div>
         ${
           cutting
-            ? `<p class="budget-legend">White line is your daily goal. Teal line is the last calorie you can eat and still be in a deficit.</p>`
+            ? `<p class="budget-legend">White line is your daily goal. Teal line is TDEE plus today’s burn — eat up to there and you’re still in a deficit.</p>`
             : ""
         }
       </div>
-      <div class="energy-strip${deficitCell ? " has-deficit" : ""}">
+      <div class="energy-strip">
         <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
         <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
         <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
-        ${
-          energy.deficit != null
-            ? energy.deficit >= 0
-              ? `<span class="deficit">Deficit ${infoI("deficit")}<strong>${round1(energy.deficit)}</strong></span>`
-              : `<span class="surplus">Surplus ${infoI("surplus")}<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
-            : ""
-        }
       </div>
+      ${
+        tdeeCell || deficitCell
+          ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
+          : ""
+      }
     `;
   }
 
