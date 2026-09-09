@@ -1362,6 +1362,10 @@
       const raw = action.prompt || action.label;
       lastLoggedIds = { meals: [], activities: [] };
       const kind = isActivityPayload(parsed) ? "activity" : "food";
+      if (kind === "activity" && !confirmIfDuplicateActivity(parsed)) {
+        setHint(els.logHint, "Duplicate activity not logged.");
+        return;
+      }
       if (kind === "activity") {
         commitActivityLog(parsed, raw);
       } else {
@@ -1828,6 +1832,114 @@
       .join("");
   }
 
+  function stripAssumptionNotes(name) {
+    return String(name || "")
+      .replace(/\(([^)]*assumed[^)]*)\)/gi, (_, inner) => {
+        const facts = inner
+          .replace(/,?\s*assumed[^,]*/gi, "")
+          .replace(/^[\s,]+|[\s,]+$/g, "")
+          .trim();
+        return facts;
+      })
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  function formatAssumptionLabel(raw) {
+    const text = String(raw || "").trim();
+    const mins = text.match(/(\d+(?:\.\d+)?)\s*min/i);
+    if (mins) return `${mins[1]} min assumed`;
+    return text.replace(/^\(?|\)$/g, "").trim();
+  }
+
+  function assumptionNotesFromName(name) {
+    return [...String(name || "").matchAll(/\(([^)]*assumed[^)]*)\)/gi)].map((m) =>
+      formatAssumptionLabel(m[1])
+    );
+  }
+
+  function textHasDuration(text) {
+    return /\b\d+(?:\.\d+)?\s*(min|mins|minute|minutes|hr|hrs|hour|hours)\b/i.test(
+      String(text || "")
+    );
+  }
+
+  function durationAssumption(item, act) {
+    const fromName = assumptionNotesFromName(item?.name || "");
+    if (fromName.length) return fromName[0];
+    const mins = Number(item?.durationMin) || 0;
+    const source = act?.rawText || act?.text || "";
+    if (mins && !textHasDuration(source)) return `${round1(mins)} min assumed`;
+    if (!mins) return "Duration assumed";
+    return "";
+  }
+
+  function activityTitle(act) {
+    const label = String(act?.label || "").trim();
+    if (label && label.toLowerCase() !== "activity") return label;
+    const first = act?.items?.[0]?.name;
+    const cleaned = stripAssumptionNotes(first || "");
+    if (cleaned) return cleaned;
+    const summary = stripAssumptionNotes(act?.summary || act?.text || "");
+    return summary || "Activity";
+  }
+
+  function activityScanKey(act) {
+    const raw = [
+      act?.label || "",
+      act?.summary || "",
+      act?.text || "",
+      act?.rawText || "",
+      ...(Array.isArray(act?.items) ? act.items.map((item) => item.name || "") : []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    const miles = raw.match(/(\d+(?:\.\d+)?)\s*(?:mi(?:le)?s?)\b/);
+    let kind = "";
+    if (/\b(walk|walking)\b/.test(raw)) kind = "walk";
+    else if (/\b(run|running|jog|jogging)\b/.test(raw)) kind = "run";
+    else if (/\b(lift|weights|strength|workout)\b/.test(raw)) kind = "lift";
+    else {
+      kind = stripAssumptionNotes(act?.items?.[0]?.name || act?.label || act?.text || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    }
+    const mins = (Array.isArray(act?.items) ? act.items : []).reduce(
+      (n, item) => n + (Number(item.durationMin) || 0),
+      0
+    );
+    return {
+      kind,
+      miles: miles ? Number(miles[1]) : null,
+      mins,
+    };
+  }
+
+  function isNearDuplicateActivity(a, b) {
+    const x = activityScanKey(a);
+    const y = activityScanKey(b);
+    if (!x.kind || !y.kind || x.kind !== y.kind) return false;
+    if (x.miles != null && y.miles != null && x.miles !== y.miles) return false;
+    if (x.mins && y.mins && Math.abs(x.mins - y.mins) > 5) return false;
+    return true;
+  }
+
+  function findNearDuplicateActivity(parsed) {
+    return today().activities.find((act) => isNearDuplicateActivity(act, parsed)) || null;
+  }
+
+  function confirmIfDuplicateActivity(parsed) {
+    const hit = findNearDuplicateActivity(parsed);
+    if (!hit) return true;
+    const title = activityTitle(hit);
+    const when = formatTime(hit.loggedAt);
+    const kcal = round1(hit.totalCaloriesBurned || 0);
+    return window.confirm(
+      `You already logged ${title} today at ${when} (${kcal} kcal burned). Log another?`
+    );
+  }
+
   function renderActivities() {
     const activities = today().activities;
     els.activityEmpty.hidden = activities.length > 0;
@@ -1835,27 +1947,48 @@
       .reverse()
       .map((act) => {
         const items = Array.isArray(act.items) ? act.items : [];
-        const detail =
-          items.length > 0
-            ? items
-                .map((item) => {
-                  const mins = item.durationMin ? `${round1(item.durationMin)} min · ` : "";
-                  return `<li>${escapeHtml(item.name)} <span>${mins}${round1(item.caloriesBurned)} kcal · ${escapeHtml(item.intensity || "moderate")}</span></li>`;
-                })
-                .join("")
-            : `<li>${escapeHtml(act.text || act.summary || "Activity")}</li>`;
+        const title = activityTitle(act);
+        const rows = (items.length
+          ? items
+          : [
+              {
+                name: act.text || act.summary || "Activity",
+                durationMin: 0,
+                caloriesBurned: act.totalCaloriesBurned,
+                intensity: "",
+              },
+            ]
+        )
+          .map((item) => {
+            const clean = stripAssumptionNotes(item.name || "") || item.name || "Activity";
+            const assumed = durationAssumption(item, act);
+            const mins = item.durationMin ? `${round1(item.durationMin)} min` : "";
+            const intensity = item.intensity || "";
+            const showName = clean && clean.toLowerCase() !== title.toLowerCase();
+            const bits = [showName ? escapeHtml(clean) : "", mins, intensity]
+              .filter(Boolean)
+              .join(" · ");
+            const chip = assumed
+              ? `<button type="button" class="assumption-chip" data-edit-activity="${act.id}">${escapeHtml(assumed)}</button>`
+              : "";
+            return `<li><div class="activity-line">${bits}${chip}</div></li>`;
+          })
+          .join("");
 
         return `
           <li class="meal-item activity-item${lastLoggedIds.activities.includes(act.id) ? " is-new" : ""}">
             <div class="meal-top">
-              <div class="meal-time">${formatTime(act.loggedAt)}</div>
+              <div>
+                <div class="activity-name">${escapeHtml(title)}</div>
+                <div class="meal-time">${formatTime(act.loggedAt)}</div>
+              </div>
               <div class="entry-actions">
                 <button type="button" class="meal-edit" data-qa-from-activity="${act.id}">Add Shortcut</button>
                 <button type="button" class="meal-edit" data-edit-activity="${act.id}">Edit</button>
                 <button type="button" class="meal-delete" data-delete-activity="${act.id}">Delete</button>
               </div>
             </div>
-            <ul class="meal-items">${detail}</ul>
+            <ul class="meal-items">${rows}</ul>
             <div class="activity-meta">${round1(act.totalCaloriesBurned || 0)} kcal burned</div>
           </li>
         `;
@@ -2132,15 +2265,30 @@
       });
       lastLoggedIds = { meals: [], activities: [] };
       (result.meals || []).forEach((meal) => commitMealLog(meal, text));
-      (result.activities || []).forEach((act) => commitActivityLog(act, text));
+      const keptActs = [];
+      for (const act of result.activities || []) {
+        if (!confirmIfDuplicateActivity(act)) continue;
+        keptActs.push(act);
+        commitActivityLog(act, text);
+      }
+      if (!(result.meals || []).length && !keptActs.length) {
+        setHint(els.logHint, "Duplicate activity not logged.");
+        return;
+      }
       persist();
       if (!fromQuick) els.logInput.value = "";
-      revealLoggedKind(result.kind);
+      const kind =
+        keptActs.length && !(result.meals || []).length ? "activity" : result.kind;
+      revealLoggedKind(kind);
       renderAll();
-      const msg = logMessage(result);
+      const msg = logMessage({
+        meals: result.meals || [],
+        activities: keptActs,
+        kind,
+      });
       setHint(els.logHint, msg, true);
       showToast(msg, true);
-      focusNewEntry(result.kind === "activity" ? "activity" : "food");
+      focusNewEntry(kind === "activity" ? "activity" : "food");
     } catch (err) {
       const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
       const msg = err.message || `Failed to parse with ${providerLabel}.`;
@@ -2321,7 +2469,7 @@
       <label>Original description
         <textarea id="edit-raw" class="field-input">${escapeHtml(act.rawText || act.text || "")}</textarea>
       </label>
-      <div class="field-help">Edit burn details below, or re-parse the description with AI.</div>
+      <div class="field-help">Assumed minutes live here — change duration if the guess was wrong, or re-parse the description with AI.</div>
       <div id="edit-items">${itemsHtml}</div>
     `;
     setHint(els.editHint, "");
@@ -3403,7 +3551,14 @@
         if (btn) positionGlossaryTip(btn);
       }
     });
-    window.addEventListener("scroll", updateLogJump, { passive: true });
+    window.addEventListener(
+      "scroll",
+      () => {
+        updateLogJump();
+        if (els.toast && !els.toast.hidden) positionToast();
+      },
+      { passive: true }
+    );
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") {
         window.MMC.flushDrivePush?.(true);
