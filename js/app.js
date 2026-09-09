@@ -21,6 +21,7 @@
     getStreak,
     getBestStreak,
     trendSeries,
+    rollingNetAverage,
     avg,
     uid,
     upsertWeight,
@@ -1996,7 +1997,7 @@
       .join("");
   }
 
-  function renderTrend(span, chartEl, statsEl, hitEl) {
+  function renderTrend(span, chartEl, statsEl, hitEl, avgDays) {
     const t = targets();
     const series = trendSeries(state, span);
     const hits = series.filter((d) => d.hit).length;
@@ -2031,14 +2032,23 @@
       </div>
     `;
 
-    const avgNet = avg(logged.map((d) => d.totals.calories));
+    const rolling = rollingNetAverage(state, avgDays);
     const burnDays = series.filter((d) => d.burned > 0 || d.logged);
     const avgBurn = avg(burnDays.map((d) => d.burned));
     const avgProtein = avg(logged.map((d) => d.food.protein));
     const totalBurn = series.reduce((n, d) => n + d.burned, 0);
+    const avgText =
+      rolling.avg == null ? "—" : `${round1(rolling.avg)} kcal`;
+    const avgSub = rolling.loggedCount
+      ? `Net calories · ${rolling.loggedCount} of ${avgDays} days with meals`
+      : "No days with meals in this window";
 
     statsEl.innerHTML = `
-      <div class="stat"><span>Avg net kcal</span><strong>${logged.length ? round1(avgNet) : "—"}</strong></div>
+      <div class="stat stat-featured">
+        <span>${avgDays}-day avg</span>
+        <strong>${avgText}</strong>
+        <span class="stat-sub">${avgSub}</span>
+      </div>
       <div class="stat"><span>Avg protein</span><strong>${logged.length ? round1(avgProtein) + "g" : "—"}</strong></div>
       <div class="stat"><span>Avg burn</span><strong>${series.some((d) => d.burned) ? round1(avgBurn) : "—"}</strong></div>
       <div class="stat"><span>Total burn</span><strong>${round1(totalBurn)}</strong></div>
@@ -2047,8 +2057,8 @@
 
   function renderTrends() {
     const t = targets();
-    renderTrend(7, els.weekChart, els.weekStats, els.weekHitRate);
-    renderTrend(30, els.monthChart, els.monthStats, els.monthHitRate);
+    renderTrend(7, els.weekChart, els.weekStats, els.weekHitRate, 7);
+    renderTrend(30, els.monthChart, els.monthStats, els.monthHitRate, 28);
     els.goalLegendMonth.textContent = `Goal day: net kcal ±10% of ${t.calories}, protein ≥${t.protein}g, carbs ≥${t.carbs}g, fiber >${t.fiber}g, fat ≤${t.fat}g`;
   }
 
