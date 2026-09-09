@@ -319,6 +319,7 @@ Rules:
       },
       goals: { ...window.MMC.DEFAULT_TARGETS },
       quickActions: window.MMC.defaultQuickActions(),
+      tombstones: window.MMC.emptyTombstones(),
       updatedAt: 0,
       history: {
         [today]: window.MMC.emptyDay(),
@@ -337,10 +338,102 @@ Rules:
       theme: window.MMC.sanitizeTheme(parsed?.theme),
       goalWeight: window.MMC.sanitizeGoalWeight(parsed?.goalWeight),
       profile: window.MMC.sanitizeProfile(parsed?.profile),
+      tombstones: window.MMC.sanitizeTombstones(parsed?.tombstones),
       updatedAt: Number(parsed?.updatedAt) || 0,
     };
     Object.assign(merged, window.MMC.migrateAiSettings(merged));
-    return window.MMC.ensureToday(merged);
+    return window.MMC.applyTombstones(window.MMC.ensureToday(merged));
+  },
+
+  emptyTombstones() {
+    return { meals: {}, activities: {}, weights: {} };
+  },
+
+  TOMBSTONE_TTL_MS: 90 * 24 * 60 * 60 * 1000,
+
+  sanitizeTombstones(input) {
+    const now = Date.now();
+    const ttl = window.MMC.TOMBSTONE_TTL_MS;
+    const clean = (map) => {
+      const out = {};
+      Object.entries(map && typeof map === "object" ? map : {}).forEach(([id, at]) => {
+        const key = String(id || "").trim();
+        const t = Number(at);
+        if (!key || !Number.isFinite(t) || t <= 0) return;
+        if (now - t > ttl) return;
+        out[key] = t;
+      });
+      return out;
+    };
+    return {
+      meals: clean(input?.meals),
+      activities: clean(input?.activities),
+      weights: clean(input?.weights),
+    };
+  },
+
+  hasTombstones(state) {
+    const stones = window.MMC.sanitizeTombstones(state?.tombstones);
+    return (
+      Object.keys(stones.meals).length +
+        Object.keys(stones.activities).length +
+        Object.keys(stones.weights).length >
+      0
+    );
+  },
+
+  mergeTombstones(a, b) {
+    const mergeMap = (left, right) => {
+      const out = { ...(left || {}) };
+      Object.entries(right || {}).forEach(([id, at]) => {
+        out[id] = Math.max(Number(out[id]) || 0, Number(at) || 0);
+      });
+      return out;
+    };
+    const left = window.MMC.sanitizeTombstones(a);
+    const right = window.MMC.sanitizeTombstones(b);
+    return window.MMC.sanitizeTombstones({
+      meals: mergeMap(left.meals, right.meals),
+      activities: mergeMap(left.activities, right.activities),
+      weights: mergeMap(left.weights, right.weights),
+    });
+  },
+
+  addTombstones(state, kind, ids) {
+    const stones = window.MMC.sanitizeTombstones(state?.tombstones);
+    const bucket = stones[kind] && typeof stones[kind] === "object" ? stones[kind] : {};
+    const now = Date.now();
+    (Array.isArray(ids) ? ids : [ids]).forEach((id) => {
+      const key = String(id || "").trim();
+      if (!key) return;
+      bucket[key] = now;
+    });
+    stones[kind] = bucket;
+    state.tombstones = stones;
+    return state;
+  },
+
+  rejectTombstoned(items, tombMap) {
+    const blocked = tombMap || {};
+    return (items || []).filter((item) => {
+      if (!item) return false;
+      if (!item.id) return true;
+      return !blocked[item.id];
+    });
+  },
+
+  applyTombstones(state) {
+    if (!state) return state;
+    const stones = window.MMC.sanitizeTombstones(state.tombstones);
+    state.tombstones = stones;
+    Object.keys(state.history || {}).forEach((key) => {
+      const day = state.history[key];
+      if (!day) return;
+      day.meals = window.MMC.rejectTombstoned(day.meals, stones.meals);
+      day.activities = window.MMC.rejectTombstoned(day.activities, stones.activities);
+    });
+    state.weights = window.MMC.rejectTombstoned(state.weights, stones.weights);
+    return state;
   },
 
   mergeById(items) {
@@ -360,6 +453,7 @@ Rules:
 
   stateHasUserData(state) {
     if (!state) return false;
+    if (window.MMC.hasTombstones(state)) return true;
     if (window.MMC.stateHasLogs(state)) return true;
     if ((state.weights || []).length > 0) return true;
     if (state.goalWeight) return true;
@@ -511,6 +605,7 @@ Rules:
         activity: window.MMC.mergeQuickActionLists(localQa.activity, remoteQa.activity),
       },
       profile: window.MMC.mergeProfiles(localState.profile, remoteState.profile),
+      tombstones: window.MMC.mergeTombstones(localState.tombstones, remoteState.tombstones),
       updatedAt: Math.max(localTs, remoteTs),
     });
   },

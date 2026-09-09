@@ -55,6 +55,8 @@
     mergeDriveState,
     stateHasUserData,
     stateHasLogs,
+    addTombstones,
+    hasTombstones,
   } = window.MMC;
 
   const GLOSSARY = [
@@ -944,11 +946,11 @@
         return;
       }
 
-      const localSparse = !stateHasUserData(state);
-      state = localSparse ? remote : mergeDriveState(state, remote);
+      const takeRemote = !stateHasUserData(state) && !hasTombstones(state);
+      state = takeRemote ? remote : mergeDriveState(state, remote);
       saveState(state);
       renderAll();
-      if (!localSparse) {
+      if (!takeRemote) {
         await drivePush(state, { skipPull: true });
       }
       renderDriveStatus();
@@ -2089,6 +2091,7 @@
 
   function deleteMeal(id) {
     if (!confirm("Delete this meal?")) return;
+    addTombstones(state, "meals", id);
     today().meals = today().meals.filter((m) => m.id !== id);
     persist();
     renderAll();
@@ -2097,6 +2100,7 @@
 
   function deleteActivity(id) {
     if (!confirm("Delete this activity?")) return;
+    addTombstones(state, "activities", id);
     today().activities = today().activities.filter((a) => a.id !== id);
     persist();
     renderAll();
@@ -2105,6 +2109,7 @@
 
   function deleteWeight(id) {
     if (!confirm("Delete this weight entry?")) return;
+    addTombstones(state, "weights", id);
     state.weights = (state.weights || []).filter((w) => w.id !== id);
     persist();
     renderAll();
@@ -2382,6 +2387,8 @@
   function resetDay() {
     if (!confirm("Clear today's meals and activities?")) return;
     const day = today();
+    addTombstones(state, "meals", (day.meals || []).map((m) => m.id));
+    addTombstones(state, "activities", (day.activities || []).map((a) => a.id));
     day.meals = [];
     day.activities = [];
     persist();
