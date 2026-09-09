@@ -73,7 +73,7 @@
     {
       id: "goal",
       term: "Daily goal",
-      body: "The calorie target you set (or the calculator set). The white line on the bar. Hitting this keeps the deficit you planned.",
+      body: "The calorie target you set (or the calculator set). The white tick on the bar. Hitting this keeps the deficit you planned.",
     },
     {
       id: "tdee",
@@ -82,8 +82,8 @@
     },
     {
       id: "deficit",
-      term: "Deficit",
-      body: "Eating fewer net calories than maintenance. The teal line is the last calorie you can eat today and still be losing. Workouts you log raise that line.",
+      term: "Under maintenance",
+      body: "Eating fewer net calories than maintenance (a deficit). The teal tick is the last calorie you can eat today and still be losing. Workouts you log raise that line. Also called TDEE plus today’s burn.",
     },
     {
       id: "surplus",
@@ -103,7 +103,7 @@
     {
       id: "net",
       term: "Net",
-      body: "Food minus burned. Compared with your daily goal, and with maintenance to see if you’re still in a deficit.",
+      body: "Food minus workouts burned. Can be negative if you burned more than you ate. Compared with your daily goal, and with maintenance to see if you’re still cutting.",
     },
     {
       id: "hit",
@@ -472,7 +472,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Log first, then glance at calories left and the bar. Open Goal, TDEE & breakdown if you want the tiles and jargon.",
+      body: "Log first, then glance at calories left and the bar. Open How left today is figured if you want the math.",
       target: "#daily-tracker",
     },
     {
@@ -1602,7 +1602,32 @@
     els.streakBest.textContent = `Best ${best}`;
   }
 
-  function budgetBar({ value, base, extended, fillClass, showMark, deficitUntil = 0 }) {
+  function markAlignClass(pctVal, otherPct, role) {
+    const crowded = otherPct != null && Math.abs(pctVal - otherPct) < 22;
+    if (role === "goal" && (pctVal > 86 || crowded)) return " is-end";
+    if (pctVal > 86) return " is-end";
+    if (pctVal < 14) return " is-start";
+    return "";
+  }
+
+  function budgetMark(kind, pctVal, label, align) {
+    const labelHtml = label
+      ? `<span class="budget-mark-label${align || ""}">${label}</span>`
+      : "";
+    return `<div class="budget-mark${kind ? ` ${kind}` : ""}" style="left:${pctVal.toFixed(2)}%">${labelHtml}</div>`;
+  }
+
+  function budgetBar({
+    value,
+    base,
+    extended,
+    fillClass,
+    showMark,
+    deficitUntil = 0,
+    annotate = false,
+    goalLabel = "",
+    deficitLabel = "",
+  }) {
     const goal = Math.max(0, Number(base) || 0);
     const ext = Math.max(Number(extended) || 0, goal);
     const def = Math.max(0, Number(deficitUntil) || 0);
@@ -1621,8 +1646,13 @@
     const showGoalMark = goal > 0 && goalPct < 99.2;
     const showDeficitMark = def > goal + 20;
     const showBurnMark = false;
+    const labeled = annotate && (showGoalMark || showDeficitMark);
+    const otherForGoal = showDeficitMark ? defPct : null;
+    const otherForDef = showGoalMark ? goalPct : null;
+    const goalAlign = markAlignClass(goalPct, otherForGoal, "goal");
+    const defAlign = markAlignClass(defPct, otherForDef, "deficit");
     return `
-      <div class="budget-track${showMark || showDeficitMark ? " has-burn" : ""}${over ? " is-over" : ""}${showDeficitMark ? " has-deficit" : ""}" aria-hidden="true">
+      <div class="budget-track${showMark || showDeficitMark ? " has-burn" : ""}${over ? " is-over" : ""}${showDeficitMark ? " has-deficit" : ""}${labeled ? " has-labels" : ""}" aria-hidden="true">
         <div class="budget-well">
           ${showDeficitMark ? `<div class="budget-deficit-zone" style="width:${defPct.toFixed(2)}%"></div>` : ""}
           ${showMark ? `<div class="budget-zone" style="left:${goalPct.toFixed(2)}%;width:${Math.max(0, extPct - goalPct).toFixed(2)}%"></div>` : ""}
@@ -1643,10 +1673,62 @@
               : ""
           }
         </div>
-        ${showGoalMark ? `<div class="budget-mark" style="left:${goalPct.toFixed(2)}%"></div>` : ""}
-        ${showBurnMark ? `<div class="budget-mark burn" style="left:${extPct.toFixed(2)}%"></div>` : ""}
-        ${showDeficitMark ? `<div class="budget-mark deficit" style="left:${defPct.toFixed(2)}%"></div>` : ""}
+        ${showGoalMark ? budgetMark("", goalPct, labeled ? goalLabel : "", goalAlign) : ""}
+        ${showBurnMark ? budgetMark("burn", extPct, "", "") : ""}
+        ${showDeficitMark ? budgetMark("deficit", defPct, labeled ? deficitLabel : "", defAlign) : ""}
       </div>
+    `;
+  }
+
+  function energyEquationHtml(energy) {
+    const foodKcal = energy.food.calories;
+    const burned = energy.burned;
+    const signedNet = foodKcal - burned;
+    const goal = energy.targets.calories;
+    const maint = energy.maintenance;
+    const vsMaint = maint != null ? maint - signedNet : null;
+    const cutting = energy.deficitUntil != null && energy.deficitUntil > goal + 20;
+
+    let result = "";
+    if (vsMaint != null) {
+      if (Math.abs(vsMaint) < 0.5) {
+        result = `<p class="energy-eq-result">At maintenance</p>`;
+      } else if (vsMaint > 0) {
+        result = `<p class="energy-eq-result is-under">Still ${round1(vsMaint)} under maintenance</p>`;
+      } else {
+        result = `<p class="energy-eq-result is-over">${round1(Math.abs(vsMaint))} over maintenance</p>`;
+      }
+    }
+
+    const legend = cutting
+      ? "White tick is your goal; teal is maintenance plus today’s burn."
+      : "The white tick is your daily goal.";
+
+    return `
+      <div class="energy-eq">
+        <div class="energy-eq-row">
+          <span class="energy-eq-label">Ate</span>
+          <span class="energy-eq-value">${round1(foodKcal)}</span>
+        </div>
+        <div class="energy-eq-row">
+          <span class="energy-eq-label"><span class="energy-eq-flow" aria-hidden="true">→</span> Workouts burned</span>
+          <span class="energy-eq-value is-burn">−${round1(burned)}</span>
+        </div>
+        <div class="energy-eq-row is-net">
+          <span class="energy-eq-label"><span class="energy-eq-flow" aria-hidden="true">→</span> Net ${infoI("net")}</span>
+          <span class="energy-eq-value${signedNet < 0 ? " is-neg" : ""}">${round1(signedNet)}</span>
+        </div>
+        <div class="energy-eq-vs">
+          vs Goal ${infoI("goal")} <strong>${round1(goal)}</strong>
+          ${
+            maint != null
+              ? `<span class="energy-eq-dot">·</span> vs Maintenance ${infoI("tdee")} <strong>${round1(maint)}</strong>`
+              : ""
+          }
+        </div>
+        ${result}
+      </div>
+      <p class="budget-legend">${legend}</p>
     `;
   }
 
@@ -1662,6 +1744,7 @@
     const cutting = deficitUntil != null && deficitUntil > t.calories + 20;
     const intoBurn = burned > 0 && foodKcal > t.calories && remaining >= 0;
     const pastMaint = cutting && foodKcal > deficitUntil;
+    const leftTowardGoal = t.calories - foodKcal;
 
     let remClass = "";
     let amount = round1(Math.abs(remaining));
@@ -1680,24 +1763,23 @@
     } else if (intoBurn) {
       remClass = "into-burn";
       status = "of burn left";
-    } else if (Math.abs(remaining) <= t.calories * 0.1) {
-      remClass = "on-track";
+    } else {
+      // Display leftover toward the goal from food eaten — floored net
+      // (used by trends/hits) can hide a small meal when burn is larger.
+      amount = round1(Math.max(0, leftTowardGoal));
+      if (t.calories > 0 && Math.abs(leftTowardGoal) <= t.calories * 0.1) {
+        remClass = "on-track";
+      }
     }
 
     const showMark = burned > 0;
-    const maint = energy.maintenance;
-    const valueRight = `of ${t.calories}`;
-
-    const tdeeCell =
-      maint != null
-        ? `<span class="tdee">TDEE ${infoI("tdee")}<strong>${round1(maint)}</strong></span>`
-        : "";
-    const deficitCell =
-      energy.deficit != null
-        ? energy.deficit >= 0
-          ? `<span class="deficit">Deficit ${infoI("deficit")}<strong>${round1(energy.deficit)}</strong></span>`
-          : `<span class="surplus">Surplus ${infoI("surplus")}<strong>${round1(Math.abs(energy.deficit))}</strong></span>`
-        : "";
+    const valueRight =
+      leftTowardGoal >= 0
+        ? `${round1(leftTowardGoal)} left`
+        : `${round1(Math.abs(leftTowardGoal))} over`;
+    const deficitLabel = burned > 0
+      ? `maint<span class="budget-mark-sub">+burn</span>`
+      : "maint";
 
     els.energyCard.innerHTML = `
       <div class="energy-hero">
@@ -1714,6 +1796,9 @@
           fillClass: "macro-fill calories",
           showMark,
           deficitUntil: cutting ? deficitUntil : 0,
+          annotate: true,
+          goalLabel: "goal",
+          deficitLabel,
         })}
         <div class="energy-budget-values">
           <span>${round1(foodKcal)} eaten</span>
@@ -1721,27 +1806,8 @@
         </div>
       </div>
       <details class="energy-details" ${energyDetailsOpen ? "open" : ""}>
-        <summary>Goal, TDEE &amp; breakdown</summary>
-        <div class="energy-hero-meta energy-hero-meta-details">
-          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
-          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
-          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
-        </div>
-        ${
-          cutting
-            ? `<p class="budget-legend">White line is your daily goal. Teal line is TDEE plus today’s burn — eat up to there and you’re still in a deficit.</p>`
-            : ""
-        }
-        <div class="energy-strip">
-          <span>Food ${infoI("food")}<strong>${round1(foodKcal)}</strong></span>
-          <span class="burn">Burned ${infoI("burned")}<strong>${round1(burned)}</strong></span>
-          <span>Net ${infoI("net")}<strong>${round1(energy.netCalories)}</strong></span>
-        </div>
-        ${
-          tdeeCell || deficitCell
-            ? `<div class="energy-strip energy-strip-tdee">${tdeeCell}${deficitCell}</div>`
-            : ""
-        }
+        <summary>How left today is figured</summary>
+        ${energyEquationHtml(energy)}
       </details>
     `;
     const details = els.energyCard.querySelector(".energy-details");

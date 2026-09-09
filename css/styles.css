@@ -286,6 +286,46 @@ button {
   pointer-events: none;
 }
 
+.budget-track.has-labels {
+  margin-bottom: 1.55rem;
+}
+
+.budget-mark-label {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font);
+  font-size: 0.62rem;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.budget-mark-label.is-end {
+  transform: translateX(-100%);
+  align-items: flex-end;
+}
+
+.budget-mark-label.is-start {
+  transform: translateX(0);
+  align-items: flex-start;
+}
+
+.budget-mark.deficit .budget-mark-label {
+  color: var(--fiber);
+}
+
+.budget-mark-sub {
+  display: block;
+  font-weight: 600;
+}
+
 .budget-track.is-over .budget-well {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 60%, transparent);
 }
@@ -1361,7 +1401,91 @@ button {
 }
 
 .energy-details .budget-legend {
-  margin-top: 0.55rem;
+  margin-top: 0.45rem;
+}
+
+.energy-eq {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-top: 0.45rem;
+}
+
+.energy-eq-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.energy-eq-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.energy-eq-flow {
+  display: inline-block;
+  margin-right: 0.15rem;
+  color: var(--text-dim);
+  font-weight: 650;
+}
+
+.energy-eq-value {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.energy-eq-value.is-burn {
+  color: var(--fiber);
+}
+
+.energy-eq-value.is-neg {
+  color: var(--fiber);
+}
+
+.energy-eq-row.is-net {
+  padding-top: 0.35rem;
+  margin-top: 0.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.energy-eq-vs {
+  margin-top: 0.35rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--border);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.energy-eq-vs strong {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.energy-eq-dot {
+  margin: 0 0.25rem;
+  color: var(--text-dim);
+}
+
+.energy-eq-result {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.energy-eq-result.is-under {
+  color: var(--fiber);
+}
+
+.energy-eq-result.is-over {
+  color: var(--red);
 }
 
 .activity-name {
@@ -2267,6 +2391,7 @@ button {
 .energy-hero-tdee .info-i,
 .energy-hero-deficit .info-i,
 .energy-strip .info-i,
+.energy-eq .info-i,
 .trend-note .info-i,
 .macro-stat span .info-i {
   margin-left: 0.15rem;
