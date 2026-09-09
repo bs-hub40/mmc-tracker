@@ -547,6 +547,11 @@ button {
 
 .log-hint.ok {
   color: var(--green);
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: var(--green-soft);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  font-weight: 650;
 }
 
 .meals-header {
@@ -897,6 +902,11 @@ button {
   font-weight: 600;
   color: var(--text);
   animation: rise 0.28s ease both;
+  pointer-events: none;
+}
+
+.toast.near-cta {
+  bottom: auto;
 }
 
 .toast.ok {
@@ -911,6 +921,23 @@ button {
 
 .meal-item.is-new {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.meal-item.is-highlight {
+  animation: card-flash 1.6s ease;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+}
+
+@keyframes card-flash {
+  0% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 70%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+  }
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+    background: var(--bg);
+  }
 }
 
 .empty-state[hidden],

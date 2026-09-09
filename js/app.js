@@ -439,6 +439,7 @@
   let qaSexPick = "";
   let lastMacroResult = null;
   let energyDetailsOpen = false;
+  let lastLoggedIds = { meals: [], activities: [] };
   let tourIndex = 0;
   const TOUR_STEPS = [
     {
@@ -580,16 +581,40 @@
     el.classList.toggle("ok", ok);
   }
 
+  function positionToast() {
+    if (!els.toast || els.toast.hidden) return;
+    const nearLog =
+      els.logPanel &&
+      !els.logPanel.hidden &&
+      els.logBtn &&
+      (currentMode === "nutrition" || currentMode === "activity");
+    els.toast.classList.toggle("near-cta", Boolean(nearLog));
+    if (!nearLog) {
+      els.toast.style.top = "";
+      return;
+    }
+    const r = els.logBtn.getBoundingClientRect();
+    const gap = 10;
+    const estimatedH = els.toast.offsetHeight || 48;
+    const below = r.bottom + gap + estimatedH + 12 < window.innerHeight;
+    els.toast.style.top = below
+      ? `${r.bottom + gap}px`
+      : `${Math.max(12, r.top - estimatedH - gap)}px`;
+  }
+
   function showToast(message, ok = true) {
     if (!els.toast || !message) return;
     els.toast.hidden = false;
     els.toast.textContent = message;
     els.toast.classList.toggle("ok", ok);
     els.toast.classList.toggle("err", !ok);
+    positionToast();
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => {
       els.toast.hidden = true;
-    }, 2800);
+      els.toast.style.top = "";
+      els.toast.classList.remove("near-cta");
+    }, 3200);
   }
 
   function hasHostedAi() {
@@ -1262,22 +1287,40 @@
 
   function commitMealLog(parsed, rawText) {
     const { source, ...meal } = parsed;
+    const id = uid();
     today().meals.push({
-      id: uid(),
+      id,
       loggedAt: Date.now(),
       rawText: source || rawText,
       ...meal,
     });
+    lastLoggedIds.meals.push(id);
+    return id;
   }
 
   function commitActivityLog(parsed, rawText) {
     const { source, ...activity } = parsed;
+    const id = uid();
     today().activities.push({
-      id: uid(),
+      id,
       loggedAt: Date.now(),
       rawText: source || rawText,
       text: source || rawText,
       ...activity,
+    });
+    lastLoggedIds.activities.push(id);
+    return id;
+  }
+
+  function focusNewEntry(kind) {
+    const list = kind === "activity" ? els.activityList : els.mealList;
+    const card = list?.querySelector(".is-new");
+    if (!card) return;
+    requestAnimationFrame(() => {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.classList.add("is-highlight");
+      window.setTimeout(() => card.classList.remove("is-highlight"), 2200);
+      positionToast();
     });
   }
 
@@ -1317,19 +1360,20 @@
     if (action.parsed) {
       const parsed = clonePayload(action.parsed);
       const raw = action.prompt || action.label;
-      if (isActivityPayload(parsed)) {
+      lastLoggedIds = { meals: [], activities: [] };
+      const kind = isActivityPayload(parsed) ? "activity" : "food";
+      if (kind === "activity") {
         commitActivityLog(parsed, raw);
-        persist();
-        revealLoggedKind("activity");
       } else {
         commitMealLog(parsed, raw);
-        persist();
-        revealLoggedKind("food");
       }
+      persist();
+      revealLoggedKind(kind);
       renderAll();
       const msg = `Logged ${action.label}`;
       setHint(els.logHint, msg, true);
       showToast(msg, true);
+      focusNewEntry(kind);
       return;
     }
     handleLog(action.prompt);
@@ -1753,13 +1797,13 @@
     }
     els.mealList.innerHTML = [...meals]
       .reverse()
-      .map((meal, index) => {
+      .map((meal) => {
         const names = (meal.items || [])
           .map((item) => escapeHtml(item.name))
           .join(", ");
 
         return `
-          <li class="meal-item${index === 0 ? " is-new" : ""}">
+          <li class="meal-item${lastLoggedIds.meals.includes(meal.id) ? " is-new" : ""}">
             <div class="meal-top">
               <div>
                 <div class="meal-time">${formatTime(meal.loggedAt)}</div>
@@ -1802,7 +1846,7 @@
             : `<li>${escapeHtml(act.text || act.summary || "Activity")}</li>`;
 
         return `
-          <li class="meal-item activity-item">
+          <li class="meal-item activity-item${lastLoggedIds.activities.includes(act.id) ? " is-new" : ""}">
             <div class="meal-top">
               <div class="meal-time">${formatTime(act.loggedAt)}</div>
               <div class="entry-actions">
@@ -2086,6 +2130,7 @@
         text,
         context: buildPersonContext(),
       });
+      lastLoggedIds = { meals: [], activities: [] };
       (result.meals || []).forEach((meal) => commitMealLog(meal, text));
       (result.activities || []).forEach((act) => commitActivityLog(act, text));
       persist();
@@ -2095,6 +2140,7 @@
       const msg = logMessage(result);
       setHint(els.logHint, msg, true);
       showToast(msg, true);
+      focusNewEntry(result.kind === "activity" ? "activity" : "food");
     } catch (err) {
       const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
       const msg = err.message || `Failed to parse with ${providerLabel}.`;
