@@ -1712,7 +1712,7 @@
         </div>
         <div class="energy-eq-row">
           <span class="energy-eq-label"><span class="energy-eq-flow" aria-hidden="true">→</span> Workouts burned</span>
-          <span class="energy-eq-value is-burn">−${round1(burned)}</span>
+          <span class="energy-eq-value is-burn">${burned ? `−${round1(burned)}` : "0"}</span>
         </div>
         <div class="energy-eq-row is-net">
           <span class="energy-eq-label"><span class="energy-eq-flow" aria-hidden="true">→</span> Net ${infoI("net")}</span>

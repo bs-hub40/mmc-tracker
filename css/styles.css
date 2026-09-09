@@ -287,12 +287,13 @@ button {
 }
 
 .budget-track.has-labels {
-  margin-bottom: 1.55rem;
+  margin-top: 1.45rem;
 }
 
 .budget-mark-label {
   position: absolute;
-  top: calc(100% + 5px);
+  top: auto;
+  bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -1452,6 +1453,10 @@ button {
 }
 
 .energy-eq-vs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.15rem;
   margin-top: 0.35rem;
   padding-top: 0.4rem;
   border-top: 1px dashed var(--border);
