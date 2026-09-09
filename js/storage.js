@@ -1183,26 +1183,35 @@ Rules:
     };
   },
 
-  isGoalHit(energyOrTotals, state) {
+  netKcalOf(energyOrTotals) {
+    return (
+      energyOrTotals?.netCalories ??
+      energyOrTotals?.macros?.calories ??
+      energyOrTotals?.calories ??
+      0
+    );
+  },
+
+  // Existing calorie-goal band: net kcal within ±10% of the daily calorie target.
+  isCalorieTargetHit(energyOrTotals, state) {
     const t = window.MMC.getTargets(state);
+    const calories = window.MMC.netKcalOf(energyOrTotals);
     const calLo = t.calories * (1 - window.MMC.CALORIE_TOLERANCE);
     const calHi = t.calories * (1 + window.MMC.CALORIE_TOLERANCE);
-    const calories =
-      energyOrTotals.netCalories ??
-      energyOrTotals.macros?.calories ??
-      energyOrTotals.calories ??
-      0;
-    const protein = energyOrTotals.food?.protein ?? energyOrTotals.protein ?? 0;
-    const fat = energyOrTotals.food?.fat ?? energyOrTotals.fat ?? 0;
-    const carbs = energyOrTotals.food?.carbs ?? energyOrTotals.carbs ?? 0;
-    const fiber = energyOrTotals.food?.fiber ?? energyOrTotals.fiber ?? 0;
+    return calories >= calLo && calories <= calHi;
+  },
+
+  // Existing deficit math: deficit = TDEE − net kcal. True deficit is net below TDEE.
+  isDeficitAchieved(energyOrTotals) {
+    const deficit = energyOrTotals?.deficit;
+    return deficit != null && Number(deficit) > 0;
+  },
+
+  // Hit day = calorie target (±10% net) AND deficit (net below TDEE). No new formulas.
+  isGoalHit(energyOrTotals, state) {
     return (
-      calories >= calLo &&
-      calories <= calHi &&
-      protein >= t.protein &&
-      fat <= t.fat &&
-      carbs >= t.carbs &&
-      fiber > t.fiber
+      window.MMC.isCalorieTargetHit(energyOrTotals, state) &&
+      window.MMC.isDeficitAchieved(energyOrTotals)
     );
   },
 
@@ -1300,21 +1309,28 @@ Rules:
     return keys;
   },
 
-  // Mean net kcal over the last `days` calendar days ending at endKey (default today).
-  // Days with no meal logs are omitted — not treated as zero. Activity-only or
-  // weight-only days still count for streak via dayHasEntry, but they are not
-  // food days, so they stay out of this calorie average.
+  // Rolling windows skip the current incomplete day. If endKey is omitted or is
+  // today/future, use yesterday. A selected past end date is kept as-is.
+  completedRangeEnd(endKey) {
+    const today = window.MMC.todayKey();
+    const end =
+      endKey && window.MMC.isValidDateKey(endKey) ? endKey : today;
+    return end >= today ? window.MMC.shiftKey(today, -1) : end;
+  },
+
+  // Mean net kcal over the last `days` completed calendar days ending yesterday
+  // (or at a selected completed end date). Days with no meal logs are omitted —
+  // not treated as zero. Activity-only or weight-only days still count for
+  // streak via dayHasEntry, but they are not food days, so they stay out.
   rollingNetAverage(state, days, endKey) {
-    const series = window.MMC.rangeKeys(days, endKey).map((key) =>
+    const end = window.MMC.completedRangeEnd(endKey);
+    const series = window.MMC.rangeKeys(days, end).map((key) =>
       window.MMC.dayStatus(state, key)
     );
     const logged = series.filter((d) => d.logged);
     return {
       days: Math.max(0, Number(days) || 0),
-      end:
-        endKey && window.MMC.isValidDateKey(endKey)
-          ? endKey
-          : window.MMC.todayKey(),
+      end,
       loggedCount: logged.length,
       avg: logged.length
         ? window.MMC.avg(logged.map((d) => d.energy.netCalories))

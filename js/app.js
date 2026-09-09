@@ -105,6 +105,11 @@
       body: "Food minus burned. Compared with your daily goal, and with maintenance to see if you’re still in a deficit.",
     },
     {
+      id: "hit",
+      term: "Hit day",
+      body: "A day with meals where both are true: net calories land within 10% of your daily calorie goal, and net stays below TDEE (a deficit). Target + deficit.",
+    },
+    {
       id: "budget",
       term: "Budget",
       body: "Daily goal plus today’s logged burn. Eating here is like hitting your goal after accounting for the workout.",
@@ -2003,6 +2008,7 @@
     const hits = series.filter((d) => d.hit).length;
     const logged = series.filter((d) => d.logged);
     hitEl.textContent = `${hits}/${span} hit`;
+    hitEl.title = "Hit = calorie target (±10%) + deficit (net below TDEE)";
 
     const maxCal = Math.max(t.calories * 1.15, ...series.map((d) => d.totals.calories), 1);
     const targetPct = (t.calories / maxCal) * 100;
@@ -2022,7 +2028,7 @@
               .filter(Boolean)
               .join(" ");
             return `
-              <div class="chart-col" title="${d.key}: net ${round1(d.totals.calories)} · food ${round1(d.food.calories)} · burn ${round1(d.burned)}">
+              <div class="chart-col" title="${d.key}: net ${round1(d.totals.calories)} · food ${round1(d.food.calories)} · burn ${round1(d.burned)} · ${d.hit ? "hit (target + deficit)" : d.logged ? "miss (need target + deficit)" : "no meals"}">
                 <div class="${cls}" style="height:${h}%"></div>
                 <div class="chart-label">${d.label}</div>
               </div>
@@ -2040,8 +2046,8 @@
     const avgText =
       rolling.avg == null ? "—" : `${round1(rolling.avg)} kcal`;
     const avgSub = rolling.loggedCount
-      ? `Net calories · ${rolling.loggedCount} of ${avgDays} days with meals`
-      : "No days with meals in this window";
+      ? `Net calories · ${rolling.loggedCount} of ${avgDays} completed days with meals`
+      : "No completed days with meals in this window";
 
     statsEl.innerHTML = `
       <div class="stat stat-featured">
@@ -2059,7 +2065,11 @@
     const t = targets();
     renderTrend(7, els.weekChart, els.weekStats, els.weekHitRate, 7);
     renderTrend(30, els.monthChart, els.monthStats, els.monthHitRate, 28);
-    els.goalLegendMonth.textContent = `Goal day: net kcal ±10% of ${t.calories}, protein ≥${t.protein}g, carbs ≥${t.carbs}g, fiber >${t.fiber}g, fat ≤${t.fat}g`;
+    const maint = window.MMC.getMaintenanceKcal(state);
+    els.goalLegendMonth.textContent =
+      maint != null
+        ? `Hit = calorie target (±10% of ${t.calories}) + deficit (net below TDEE ${maint})`
+        : `Hit = calorie target (±10% of ${t.calories}) + deficit (net below TDEE)`;
   }
 
   function renderWeightChart(series, goalValue) {
