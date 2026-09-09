@@ -1160,7 +1160,7 @@ button {
   align-items: flex-end;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.7rem;
+  margin-bottom: 0.55rem;
 }
 
 .energy-hero-value {
@@ -1205,6 +1205,13 @@ button {
   text-align: right;
   flex-shrink: 0;
   padding-bottom: 0.15rem;
+}
+
+.energy-hero-meta-details {
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.35rem 0 0.15rem;
 }
 
 .energy-hero-tdee {

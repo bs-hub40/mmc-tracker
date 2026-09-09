@@ -452,7 +452,7 @@
     {
       id: "energy",
       title: "Today at a glance",
-      body: "Log first, then glance at remaining calories under the box. Goal is what you planned to eat. Open Energy details for TDEE, tiles, and the bar legend.",
+      body: "Log first, then glance at calories left and the bar. Open Goal, TDEE & breakdown if you want the tiles and jargon.",
       target: "#daily-tracker",
     },
     {
@@ -1603,12 +1603,7 @@
 
     const showMark = burned > 0;
     const maint = energy.maintenance;
-    const valueRight =
-      maint != null
-        ? `goal ${t.calories} · TDEE ${round1(maint)}`
-        : showMark
-          ? `goal ${t.calories} · budget ${round1(budget)}`
-          : `of ${t.calories}`;
+    const valueRight = `of ${t.calories}`;
 
     const tdeeCell =
       maint != null
@@ -1627,11 +1622,6 @@
           <div class="energy-hero-value ${remClass}">${amount}</div>
           <div class="energy-hero-label">${status}</div>
         </div>
-        <div class="energy-hero-meta">
-          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
-          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
-          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
-        </div>
       </div>
       <div class="energy-budget">
         ${budgetBar({
@@ -1648,7 +1638,12 @@
         </div>
       </div>
       <details class="energy-details" ${energyDetailsOpen ? "open" : ""}>
-        <summary>Energy details</summary>
+        <summary>Goal, TDEE &amp; breakdown</summary>
+        <div class="energy-hero-meta energy-hero-meta-details">
+          <div>Goal ${t.calories} kcal ${infoI("goal")}</div>
+          ${maint != null ? `<div class="energy-hero-tdee">TDEE ${round1(maint)} kcal ${infoI("tdee")}</div>` : ""}
+          ${showMark ? `<div class="energy-hero-burn">+${round1(burned)} from activity ${infoI("burned")}</div>` : ""}
+        </div>
         ${
           cutting
             ? `<p class="budget-legend">White line is your daily goal. Teal line is TDEE plus today’s burn — eat up to there and you’re still in a deficit.</p>`
