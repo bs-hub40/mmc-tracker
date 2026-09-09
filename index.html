@@ -8,10 +8,10 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <title>Log it</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260909-avg" />
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260909-avg" />
-    <link rel="shortcut icon" href="favicon.png?v=20260909-avg" />
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260909-avg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png?v=20260909-hit1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/log-it-icon.png?v=20260909-hit1" />
+    <link rel="shortcut icon" href="favicon.png?v=20260909-hit1" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260909-hit1" />
     <link rel="manifest" href="site.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,13 +19,13 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260909-avg" />
+    <link rel="stylesheet" href="css/styles.css?v=20260909-hit1" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
       <div class="auth-card">
         <div class="auth-hero">
-          <img class="brand-mark auth-mark" src="icons/log-it-icon.png?v=20260909-avg" alt="" width="56" height="56" />
+          <img class="brand-mark auth-mark" src="icons/log-it-icon.png?v=20260909-hit1" alt="" width="56" height="56" />
           <h1>Log it</h1>
           <p class="auth-lead">Type what you ate or did. We’ll estimate the calories.</p>
         </div>
@@ -58,7 +58,7 @@
     <div id="app-shell" class="app" hidden>
       <header class="topbar">
         <div class="brand">
-          <img class="brand-mark" src="icons/log-it-icon.png?v=20260909-avg" alt="" width="36" height="36" />
+          <img class="brand-mark" src="icons/log-it-icon.png?v=20260909-hit1" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
             <p class="tagline" id="user-tagline">Food · activity · weight</p>
@@ -161,12 +161,15 @@
           <section class="trend-panel">
             <div class="meals-header">
               <h2>Weekly trend</h2>
-              <span class="trend-chip" id="week-hit-rate">0/7 hit</span>
+              <span class="trend-chip-wrap">
+                <span class="trend-chip" id="week-hit-rate" title="Hit = calorie target (±10%) + deficit (net below TDEE)">0/7 hit</span>
+                <button type="button" class="info-i" data-glossary="hit" aria-label="What is a hit day?">i</button>
+              </span>
             </div>
             <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 7 days <button type="button" class="info-i" data-glossary="net" aria-label="What is net calories?">i</button></p>
             <div class="chart" id="week-chart" aria-label="Weekly calorie chart"></div>
             <div class="trend-stats" id="week-stats"></div>
-            <div class="goal-legend">Green = goal day · Net = food − activity burn</div>
+            <div class="goal-legend">Green = target + deficit · Net = food − activity burn</div>
           </section>
         </div>
 
@@ -174,13 +177,16 @@
           <section class="trend-panel">
             <div class="meals-header">
               <h2>Monthly trend</h2>
-              <span class="trend-chip" id="month-hit-rate">0/30 hit</span>
+              <span class="trend-chip-wrap">
+                <span class="trend-chip" id="month-hit-rate" title="Hit = calorie target (±10%) + deficit (net below TDEE)">0/30 hit</span>
+                <button type="button" class="info-i" data-glossary="hit" aria-label="What is a hit day?">i</button>
+              </span>
             </div>
             <p class="trend-note">Net calories (food − burn) vs your calorie goal · last 30 days <button type="button" class="info-i" data-glossary="net" aria-label="What is net calories?">i</button></p>
             <div class="chart chart-dense" id="month-chart" aria-label="Monthly calorie chart"></div>
             <div class="trend-stats" id="month-stats"></div>
             <div class="goal-legend" id="goal-legend-month">
-              Goal day uses your custom targets (±10% calories)
+              Hit = calorie target (±10%) + deficit (net below TDEE)
             </div>
           </section>
         </div>
@@ -588,12 +594,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260909-avg"></script>
-    <script src="js/storage.js?v=20260909-avg"></script>
-    <script src="js/providers.js?v=20260909-avg"></script>
-    <script src="js/auth.js?v=20260909-avg"></script>
-    <script src="js/google.js?v=20260909-avg"></script>
-    <script src="js/grok.js?v=20260909-avg"></script>
-    <script src="js/app.js?v=20260909-avg"></script>
+    <script src="js/config.js?v=20260909-hit1"></script>
+    <script src="js/storage.js?v=20260909-hit1"></script>
+    <script src="js/providers.js?v=20260909-hit1"></script>
+    <script src="js/auth.js?v=20260909-hit1"></script>
+    <script src="js/google.js?v=20260909-hit1"></script>
+    <script src="js/grok.js?v=20260909-hit1"></script>
+    <script src="js/app.js?v=20260909-hit1"></script>
   </body>
 </html>

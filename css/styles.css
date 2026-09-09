@@ -1418,6 +1418,13 @@ button {
   color: var(--text-muted);
 }
 
+.trend-chip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
 .trend-chip {
   font-family: var(--mono);
   font-size: 0.72rem;
