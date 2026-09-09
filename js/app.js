@@ -166,9 +166,18 @@
   ];
 
   const LOG_COPY = {
-    label: "Log food or activity",
-    placeholder:
-      'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter, 30 min walk"',
+    nutrition: {
+      label: "Log food or activity",
+      placeholder:
+        'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter"',
+      jump: "＋ Log food",
+    },
+    activity: {
+      label: "Log a workout",
+      placeholder:
+        'Minutes help — e.g. "45 min brisk walk", "1.5 mile walk with 40 lb vest", or "Upper body lift, 50 min"',
+      jump: "＋ Log activity",
+    },
   };
 
   function glossaryEntry(id) {
@@ -766,10 +775,16 @@
     }
   }
 
+  function logCopyForMode() {
+    return LOG_COPY[currentMode] || LOG_COPY.nutrition;
+  }
+
   function syncLogPanel() {
     if (currentMode === "weight" || currentMode === "settings") return;
-    els.logLabel.textContent = LOG_COPY.label;
-    els.logInput.placeholder = LOG_COPY.placeholder;
+    const copy = logCopyForMode();
+    els.logLabel.textContent = copy.label;
+    els.logInput.placeholder = copy.placeholder;
+    if (els.logJumpBtn) els.logJumpBtn.textContent = copy.jump;
     if (!logBusy) {
       const text = els.logBtn.querySelector(".btn-text");
       if (text) text.textContent = logButtonLabel();
@@ -1197,9 +1212,11 @@
 
   function activeQuickActions() {
     const qa = sanitizeQuickActions(state?.quickActions);
-    return [...qa.nutrition, ...qa.activity].filter(
-      (item) => item.label && (item.parsed || item.prompt)
-    );
+    const ready = (item) => item.label && (item.parsed || item.prompt);
+    if (currentMode === "activity") {
+      return qa.activity.filter(ready);
+    }
+    return [...qa.nutrition, ...qa.activity].filter(ready);
   }
 
   function renderQuickActions() {
