@@ -28,6 +28,11 @@
     upsertWeight,
     weightStats,
     formatWeightDate,
+    shiftKey,
+    entryDateBounds,
+    clampEntryDate,
+    locateHistoryEntry,
+    moveHistoryEntry,
     getSession,
     loginWithGoogle,
     logout,
@@ -1301,6 +1306,7 @@
     today().meals.push({
       id,
       loggedAt: Date.now(),
+      date: todayKey(),
       rawText: source || rawText,
       ...meal,
     });
@@ -1314,6 +1320,7 @@
     today().activities.push({
       id,
       loggedAt: Date.now(),
+      date: todayKey(),
       rawText: source || rawText,
       text: source || rawText,
       ...activity,
@@ -1552,15 +1559,46 @@
   }
 
   function findHistoryEntry(kind, id) {
-    const key = String(id || "");
-    const hist = state?.history || {};
-    for (const day of Object.values(hist)) {
-      if (!day) continue;
-      const list = kind === "activity" ? day.activities : day.meals;
-      const entry = (list || []).find((item) => String(item.id) === key);
-      if (entry) return entry;
+    return locateHistoryEntry(state, kind, id)?.entry || null;
+  }
+
+  function editDateFieldHtml(dateKey) {
+    const bounds = entryDateBounds();
+    const value = clampEntryDate(dateKey, bounds.max);
+    return `
+      <label>Day
+        <input type="date" id="edit-date" class="field-input edit-date-input" value="${value}" min="${bounds.min}" max="${bounds.max}" />
+      </label>
+      <p class="field-help">Change the day to move this onto another date — handy when you forgot to log it.</p>
+    `;
+  }
+
+  function readEditDateFromForm(fallback) {
+    return clampEntryDate(document.getElementById("edit-date")?.value, fallback);
+  }
+
+  function restoreEditDate(pendingDate) {
+    const el = document.getElementById("edit-date");
+    if (!el || !pendingDate) return;
+    el.value = clampEntryDate(pendingDate, el.value);
+  }
+
+  function revealMovedEntry(kind, dateKey) {
+    const today = todayKey();
+    showToast(`Moved to ${formatWeightDate(dateKey)}`, true);
+    selectedTrendDay = dateKey;
+    if (dateKey === today) {
+      if (kind === "activity") setMode("activity");
+      else {
+        setMode("nutrition");
+        setView("today");
+      }
+      return;
     }
-    return null;
+    setMode("nutrition");
+    const weekStart = shiftKey(today, -6);
+    if (dateKey >= weekStart) setView("week");
+    else setView("month");
   }
 
   function saveEntryAsQuickAction(type, id) {
@@ -2551,7 +2589,9 @@
     els.editTitle.textContent = "Edit meal";
     els.editReparse.hidden = false;
     const items = Array.isArray(meal.items) ? meal.items : [];
+    const loc = locateHistoryEntry(state, "meal", id);
     els.editBody.innerHTML = `
+      ${editDateFieldHtml(loc?.dateKey || todayKey())}
       <label>Original description
         <textarea id="edit-raw" class="field-input">${escapeHtml(meal.rawText || "")}</textarea>
       </label>
@@ -2630,7 +2670,9 @@
             </div>
           </div>`;
 
+    const loc = locateHistoryEntry(state, "activity", id);
     els.editBody.innerHTML = `
+      ${editDateFieldHtml(loc?.dateKey || todayKey())}
       <label>Original description
         <textarea id="edit-raw" class="field-input">${escapeHtml(act.rawText || act.text || "")}</textarea>
       </label>
@@ -2704,28 +2746,36 @@
     setHint(els.editHint, "");
 
     if (editTarget.type === "meal") {
-      const meal = findHistoryEntry("meal", editTarget.id);
-      if (!meal) return;
+      const loc = locateHistoryEntry(state, "meal", editTarget.id);
+      if (!loc) return;
       const edits = readMealEditsFromForm();
       if (!edits.items.length) {
         setHint(els.editHint, "Add at least one food item.");
         return;
       }
-      Object.assign(meal, edits);
+      const nextDate = readEditDateFromForm(loc.dateKey);
+      Object.assign(loc.entry, edits);
+      const moved = nextDate !== loc.dateKey;
+      moveHistoryEntry(state, "meal", editTarget.id, nextDate);
       persist();
       renderAll();
       closeEditModal();
+      if (moved) revealMovedEntry("meal", nextDate);
       return;
     }
 
     if (editTarget.type === "activity") {
-      const act = findHistoryEntry("activity", editTarget.id);
-      if (!act) return;
+      const loc = locateHistoryEntry(state, "activity", editTarget.id);
+      if (!loc) return;
       const edits = readActivityEditsFromForm();
-      Object.assign(act, edits);
+      const nextDate = readEditDateFromForm(loc.dateKey);
+      Object.assign(loc.entry, edits);
+      const moved = nextDate !== loc.dateKey;
+      moveHistoryEntry(state, "activity", editTarget.id, nextDate);
       persist();
       renderAll();
       closeEditModal();
+      if (moved) revealMovedEntry("activity", nextDate);
       return;
     }
 
@@ -2756,6 +2806,7 @@
       return;
     }
 
+    const pendingDate = document.getElementById("edit-date")?.value;
     setHint(els.editHint, "");
     els.editSave.disabled = true;
     els.editReparse.disabled = true;
@@ -2772,10 +2823,11 @@
         });
         const meal = findHistoryEntry("meal", editTarget.id);
         if (!meal) return;
-        Object.assign(meal, { rawText: raw, ...parsed });
+        Object.assign(meal, { rawText: raw, ...parsed, updatedAt: Date.now() });
         persist();
         renderAll();
         openEditMeal(editTarget.id);
+        restoreEditDate(pendingDate);
         setHint(els.editHint, "Re-parsed. Review and Save if it looks right.", true);
       } else {
         const parsed = await parseActivityWithGrok({
@@ -2787,10 +2839,11 @@
         });
         const act = findHistoryEntry("activity", editTarget.id);
         if (!act) return;
-        Object.assign(act, { rawText: raw, text: raw, ...parsed });
+        Object.assign(act, { rawText: raw, text: raw, ...parsed, updatedAt: Date.now() });
         persist();
         renderAll();
         openEditActivity(editTarget.id);
+        restoreEditDate(pendingDate);
         setHint(els.editHint, "Re-parsed. Review and Save if it looks right.", true);
       }
     } catch (err) {
