@@ -3,6 +3,7 @@
     loadState,
     saveState,
     formatTime,
+    parseKey,
     todayKey,
     round1,
     getDay,
@@ -1584,7 +1585,12 @@
 
   function revealMovedEntry(dateKey) {
     selectedTrendDay = dateKey;
-    showToast(`Moved to ${formatWeightDate(dateKey)}`, true);
+    const label = parseKey(dateKey).toLocaleDateString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    showToast(`Moved to ${label}`, true);
   }
 
   function saveEntryAsQuickAction(type, id) {
