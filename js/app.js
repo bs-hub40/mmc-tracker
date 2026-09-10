@@ -28,7 +28,6 @@
     upsertWeight,
     weightStats,
     formatWeightDate,
-    shiftKey,
     entryDateBounds,
     clampEntryDate,
     locateHistoryEntry,
@@ -1583,22 +1582,9 @@
     el.value = clampEntryDate(pendingDate, el.value);
   }
 
-  function revealMovedEntry(kind, dateKey) {
-    const today = todayKey();
-    showToast(`Moved to ${formatWeightDate(dateKey)}`, true);
+  function revealMovedEntry(dateKey) {
     selectedTrendDay = dateKey;
-    if (dateKey === today) {
-      if (kind === "activity") setMode("activity");
-      else {
-        setMode("nutrition");
-        setView("today");
-      }
-      return;
-    }
-    setMode("nutrition");
-    const weekStart = shiftKey(today, -6);
-    if (dateKey >= weekStart) setView("week");
-    else setView("month");
+    showToast(`Moved to ${formatWeightDate(dateKey)}`, true);
   }
 
   function saveEntryAsQuickAction(type, id) {
@@ -2760,7 +2746,7 @@
       persist();
       renderAll();
       closeEditModal();
-      if (moved) revealMovedEntry("meal", nextDate);
+      if (moved) revealMovedEntry(nextDate);
       return;
     }
 
@@ -2775,7 +2761,7 @@
       persist();
       renderAll();
       closeEditModal();
-      if (moved) revealMovedEntry("activity", nextDate);
+      if (moved) revealMovedEntry(nextDate);
       return;
     }
 
