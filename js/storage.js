@@ -591,19 +591,6 @@ Rules:
     if (!localState) return remoteState;
     const localHist = localState.history || {};
     const remoteHist = remoteState.history || {};
-    const history = {};
-    const keys = new Set([...Object.keys(localHist), ...Object.keys(remoteHist)]);
-    keys.forEach((key) => {
-      const left = localHist[key] || window.MMC.emptyDay();
-      const right = remoteHist[key] || window.MMC.emptyDay();
-      history[key] = {
-        meals: window.MMC.mergeById([...(left.meals || []), ...(right.meals || [])]),
-        activities: window.MMC.mergeById([
-          ...(left.activities || []),
-          ...(right.activities || []),
-        ]),
-      };
-    });
     const localTs = Number(localState.updatedAt) || 0;
     const remoteTs = Number(remoteState.updatedAt) || 0;
     const localRich = window.MMC.stateHasUserData(localState);
@@ -617,6 +604,11 @@ Rules:
       primary = remoteTs >= localTs ? remoteState : localState;
       secondary = primary === remoteState ? localState : remoteState;
     }
+    const history = window.MMC.mergeHistoryById(
+      localHist,
+      remoteHist,
+      primary === remoteState
+    );
     const localQa = window.MMC.sanitizeQuickActions(localState.quickActions);
     const remoteQa = window.MMC.sanitizeQuickActions(remoteState.quickActions);
     return window.MMC.hydrateState({
@@ -1217,6 +1209,117 @@ Rules:
 
   isValidDateKey(key) {
     return typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key);
+  },
+
+  // New logs are always "today". Edits may move an entry onto a past day
+  // (forgotten meals), but not into the far future or a pathological past.
+  ENTRY_DATE_PAST_DAYS: 3650,
+
+  entryDateBounds(now = new Date()) {
+    const today = window.MMC.todayKey(now);
+    return {
+      min: window.MMC.shiftKey(today, -window.MMC.ENTRY_DATE_PAST_DAYS),
+      max: today,
+    };
+  },
+
+  clampEntryDate(key, fallback, now = new Date()) {
+    const bounds = window.MMC.entryDateBounds(now);
+    const fb = window.MMC.isValidDateKey(fallback) ? fallback : bounds.max;
+    if (!window.MMC.isValidDateKey(key)) return fb;
+    if (key > bounds.max) return bounds.max;
+    if (key < bounds.min) return bounds.min;
+    return key;
+  },
+
+  entryStamp(entry) {
+    return Number(entry?.updatedAt || entry?.loggedAt) || 0;
+  },
+
+  locateHistoryEntry(state, kind, id) {
+    const key = String(id || "");
+    const bucket = kind === "activity" ? "activities" : "meals";
+    const hist = state?.history || {};
+    for (const [dateKey, day] of Object.entries(hist)) {
+      if (!day) continue;
+      const list = Array.isArray(day[bucket]) ? day[bucket] : [];
+      const index = list.findIndex((item) => item && String(item.id) === key);
+      if (index >= 0) {
+        return { dateKey, day, list, index, entry: list[index], bucket };
+      }
+    }
+    return null;
+  },
+
+  moveHistoryEntry(state, kind, id, toDateKey) {
+    const loc = window.MMC.locateHistoryEntry(state, kind, id);
+    if (!loc) return null;
+    const dest = window.MMC.clampEntryDate(toDateKey, loc.dateKey);
+    loc.entry.updatedAt = Date.now();
+    loc.entry.date = dest;
+    if (dest === loc.dateKey) return loc;
+    const [entry] = loc.list.splice(loc.index, 1);
+    const day = window.MMC.getDay(state, dest);
+    const list = kind === "activity" ? day.activities : day.meals;
+    list.push(entry);
+    return {
+      dateKey: dest,
+      day,
+      list,
+      index: list.length - 1,
+      entry,
+      bucket: loc.bucket,
+    };
+  },
+
+  mergeHistoryById(localHist, remoteHist, primaryIsRemote) {
+    const secondary = primaryIsRemote ? localHist : remoteHist;
+    const primary = primaryIsRemote ? remoteHist : localHist;
+
+    const foldKind = (kind) => {
+      const wins = new Map();
+      const consider = (hist) => {
+        Object.entries(hist || {}).forEach(([dateKey, day]) => {
+          const list = kind === "activities" ? day?.activities : day?.meals;
+          (list || []).forEach((item, i) => {
+            if (!item) return;
+            const id = String(item.id || `anon-${item.loggedAt || 0}-${i}`);
+            item.id = id;
+            const date = window.MMC.isValidDateKey(item.date)
+              ? item.date
+              : dateKey;
+            const prev = wins.get(id);
+            const ts = window.MMC.entryStamp(item);
+            const prevTs = prev ? window.MMC.entryStamp(prev.entry) : -1;
+            if (!prev || ts >= prevTs) {
+              wins.set(id, { entry: item, dateKey: date });
+            }
+          });
+        });
+      };
+      consider(secondary);
+      consider(primary);
+      return wins;
+    };
+
+    const history = {};
+    const ensure = (key) => {
+      if (!history[key]) history[key] = window.MMC.emptyDay();
+      return history[key];
+    };
+    const place = (kind, wins) => {
+      wins.forEach(({ entry, dateKey }) => {
+        const key = window.MMC.isValidDateKey(dateKey)
+          ? dateKey
+          : window.MMC.todayKey();
+        entry.date = key;
+        if (kind === "activities") ensure(key).activities.push(entry);
+        else ensure(key).meals.push(entry);
+      });
+    };
+    place("meals", foldKind("meals"));
+    place("activities", foldKind("activities"));
+    return history;
   },
 
   dayHasEntry(state, dateKey) {

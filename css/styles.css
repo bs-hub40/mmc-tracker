@@ -2640,6 +2640,19 @@ button {
   resize: vertical;
 }
 
+.edit-date-input {
+  min-height: 2.75rem;
+  font-size: 1rem;
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.edit-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0.75;
+  cursor: pointer;
+  filter: invert(0.85);
+}
+
 .edit-actions {
   display: flex;
   flex-direction: column;
