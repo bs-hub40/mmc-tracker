@@ -19,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260910-move" />
+    <link rel="stylesheet" href="css/styles.css?v=20260912-logdate" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -103,6 +103,11 @@
                 <path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6" />
               </svg>
             </button>
+          </div>
+          <div class="log-date-row">
+            <label class="field-label" for="log-date">Day this log is for</label>
+            <input type="date" id="log-date" class="field-input edit-date-input" />
+            <p class="field-help log-date-help">Defaults to today. Pick another day to backdate a forgotten meal or workout.</p>
           </div>
           <div class="log-actions">
             <button type="button" class="btn btn-primary" id="log-btn">
@@ -596,12 +601,12 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260910-move"></script>
-    <script src="js/storage.js?v=20260910-move"></script>
-    <script src="js/providers.js?v=20260910-move"></script>
-    <script src="js/auth.js?v=20260910-move"></script>
-    <script src="js/google.js?v=20260910-move"></script>
-    <script src="js/grok.js?v=20260910-move"></script>
-    <script src="js/app.js?v=20260910-move"></script>
+    <script src="js/config.js?v=20260912-logdate"></script>
+    <script src="js/storage.js?v=20260912-logdate"></script>
+    <script src="js/providers.js?v=20260912-logdate"></script>
+    <script src="js/auth.js?v=20260912-logdate"></script>
+    <script src="js/google.js?v=20260912-logdate"></script>
+    <script src="js/grok.js?v=20260912-logdate"></script>
+    <script src="js/app.js?v=20260912-logdate"></script>
   </body>
 </html>

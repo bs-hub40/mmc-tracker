@@ -1211,8 +1211,8 @@ Rules:
     return typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key);
   },
 
-  // New logs are always "today". Edits may move an entry onto a past day
-  // (forgotten meals), but not into the far future or a pathological past.
+  // New logs default to today and may target another day in these bounds
+  // (forgotten meals). Edits may also move an entry. Not into the far future.
   ENTRY_DATE_PAST_DAYS: 3650,
 
   entryDateBounds(now = new Date()) {
@@ -1249,6 +1249,22 @@ Rules:
       }
     }
     return null;
+  },
+
+  appendHistoryEntry(state, kind, entry, dateKey) {
+    const dest = window.MMC.clampEntryDate(dateKey, window.MMC.todayKey());
+    const day = window.MMC.getDay(state, dest);
+    const list = kind === "activity" ? day.activities : day.meals;
+    entry.date = dest;
+    list.push(entry);
+    return {
+      dateKey: dest,
+      day,
+      list,
+      index: list.length - 1,
+      entry,
+      bucket: kind === "activity" ? "activities" : "meals",
+    };
   },
 
   moveHistoryEntry(state, kind, id, toDateKey) {
