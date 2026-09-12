@@ -65,6 +65,7 @@ assert(summed.iron === 3.9, "day totals add iron");
 assert(MMC.microPct(400, 800) === 50, "50% of target");
 assert(MMC.microStatus(0, 800, "target").id === "none", "zero is none");
 assert(MMC.microStatus(200, 800, "target").id === "low", "under 50% is low");
+assert(MMC.microStatus(600, 800, "target").id === "mid" && MMC.microStatus(600, 800, "target").label === "", "50–99% has no chip");
 assert(MMC.microStatus(800, 800, "target").id === "ok", "at target is on track");
 assert(MMC.microStatus(2500, 2300, "ceiling").id === "high", "over sodium ceiling is high");
 assert(MMC.microStatus(1200, 2300, "ceiling").id === "ok", "under sodium ceiling is on track");

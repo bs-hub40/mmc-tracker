@@ -160,7 +160,7 @@ Object.assign(window.MMC, {
       key: "potassium",
       group: "mineral",
       label: "Potassium",
-      short: "K",
+      short: "Pot",
       unit: "mg",
       decimals: 0,
       mode: "target",
@@ -416,7 +416,7 @@ Rules:
     }
     if ((Number(value) || 0) <= 0) return { id: "none", label: "—" };
     if (pct < 50) return { id: "low", label: "low" };
-    if (pct < 100) return { id: "mid", label: "low" };
+    if (pct < 100) return { id: "mid", label: "" };
     return { id: "ok", label: "on track" };
   },
 });

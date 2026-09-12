@@ -2147,7 +2147,7 @@
                   <div class="macro-name">
                     ${escapeHtml(n.label)}
                     ${
-                      status.id !== "none"
+                      status.label
                         ? `<span class="micro-chip ${status.id}">${escapeHtml(status.label)}</span>`
                         : ""
                     }
