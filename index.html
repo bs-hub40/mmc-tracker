@@ -19,7 +19,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="css/styles.css?v=20260912-itemdel" />
+    <link rel="stylesheet" href="css/styles.css?v=20260912-micros" />
   </head>
   <body>
     <div id="auth-screen" class="auth-screen">
@@ -61,7 +61,7 @@
           <img class="brand-mark" src="icons/log-it-icon.png?v=20260909-energy" alt="" width="36" height="36" />
           <div>
             <h1>Log it</h1>
-            <p class="tagline" id="user-tagline">Food · activity · weight</p>
+            <p class="tagline" id="user-tagline">Food · micros · activity · weight</p>
           </div>
         </div>
         <div class="topbar-actions">
@@ -83,6 +83,9 @@
       <nav class="mode-tabs" role="tablist" aria-label="Main menu">
         <button type="button" class="mode-tab active" role="tab" aria-selected="true" data-mode="nutrition">
           Nutrition
+        </button>
+        <button type="button" class="mode-tab" role="tab" aria-selected="false" data-mode="micros">
+          Micros
         </button>
         <button type="button" class="mode-tab" role="tab" aria-selected="false" data-mode="activity">
           Activity
@@ -107,7 +110,7 @@
           <div class="log-date-row">
             <label class="field-label" for="log-date">Day this log is for</label>
             <input type="date" id="log-date" class="field-input edit-date-input" />
-            <p class="field-help log-date-help">Defaults to today. Pick another day to backdate a forgotten meal or workout.</p>
+            <p class="field-help log-date-help" id="log-date-help">Defaults to today. Pick another day to backdate a forgotten meal or workout.</p>
           </div>
           <div class="log-actions">
             <button type="button" class="btn btn-primary" id="log-btn">
@@ -197,6 +200,51 @@
           </section>
           <section class="meals-panel day-log" id="month-day-log" aria-live="polite"></section>
         </div>
+      </div>
+
+      <div id="mode-micros" class="mode-view" hidden>
+        <section class="meals-panel">
+          <div class="meals-header">
+            <h2>Vitamins &amp; Minerals</h2>
+            <button type="button" class="text-btn" id="micros-today-btn" hidden>Today</button>
+          </div>
+          <p class="trend-note" id="micros-lead">
+            Estimated from food you log here. Compared with typical adult daily targets — not a diagnosis.
+          </p>
+          <div class="micros-day-nav">
+            <button type="button" class="icon-btn" id="micros-prev-btn" aria-label="Previous day">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <label class="micros-day-label" for="micros-date">
+              <span class="field-label" id="micros-date-label">Today</span>
+              <input type="date" id="micros-date" class="field-input edit-date-input" />
+            </label>
+            <button type="button" class="icon-btn" id="micros-next-btn" aria-label="Next day">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 6l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
+        </section>
+
+        <section class="macros micros-bars" id="micros-bars" aria-label="Daily vitamin and mineral progress"></section>
+
+        <section class="meals-panel">
+          <div class="meals-header">
+            <h2 id="micros-log-title">Today's micros</h2>
+          </div>
+          <ul class="meal-list" id="micros-list"></ul>
+          <div class="empty-state" id="micros-empty">
+            <strong>No micros yet</strong>
+            <p>Try: “2 eggs, 1 cup spinach, 6 oz salmon”</p>
+          </div>
+          <button type="button" class="btn btn-ghost" id="micros-from-meals-btn" hidden>
+            Estimate from this day’s meals
+          </button>
+          <button type="button" class="text-danger" id="reset-micros-btn" hidden>Clear this day’s micros</button>
+        </section>
       </div>
 
       <div id="mode-activity" class="mode-view" hidden>
@@ -601,12 +649,13 @@
       } catch (e) {}
     </script>
 
-    <script src="js/config.js?v=20260912-itemdel"></script>
-    <script src="js/storage.js?v=20260912-itemdel"></script>
-    <script src="js/providers.js?v=20260912-itemdel"></script>
-    <script src="js/auth.js?v=20260912-itemdel"></script>
-    <script src="js/google.js?v=20260912-itemdel"></script>
-    <script src="js/grok.js?v=20260912-itemdel"></script>
-    <script src="js/app.js?v=20260912-itemdel"></script>
+    <script src="js/config.js?v=20260912-micros"></script>
+    <script src="js/storage.js?v=20260912-micros"></script>
+    <script src="js/micros.js?v=20260912-micros"></script>
+    <script src="js/providers.js?v=20260912-micros"></script>
+    <script src="js/auth.js?v=20260912-micros"></script>
+    <script src="js/google.js?v=20260912-micros"></script>
+    <script src="js/grok.js?v=20260912-micros"></script>
+    <script src="js/app.js?v=20260912-micros"></script>
   </body>
 </html>

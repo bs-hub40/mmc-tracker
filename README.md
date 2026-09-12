@@ -39,11 +39,12 @@ Live app: `https://bs-hub40.github.io/mmc-tracker/`
 
 ## Run
 
-- Natural-language **meal** + **activity** logging via xAI Grok
+- Natural-language **meal** + **activity** logging via hosted AI (Gemini)
+- **Vitamins & minerals** tab: day-scoped micros from food text, with % of adult DRI targets
 - Energy balance: Food − Burned = **Net**, with calories remaining toward your goal
 - Weight log with dated trendline
 - Weekly & monthly net-calorie trends + goal streaks
-- `localStorage` persistence per account
+- `localStorage` persistence per account, plus Drive sync for Google accounts
 
 
 ## Run

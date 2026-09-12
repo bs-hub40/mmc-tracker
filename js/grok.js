@@ -330,6 +330,29 @@ window.MMC = window.MMC || {};
     };
   }
 
+  function normalizeMicrosPayload(data) {
+    if (!data || typeof data !== "object") {
+      throw new Error("Could not read those micronutrients. Try a bit more food detail.");
+    }
+    const raw = Array.isArray(data)
+      ? data
+      : Array.isArray(data.entries)
+        ? data.entries
+        : Array.isArray(data.foods)
+          ? data.foods
+          : [data];
+    const entries = raw
+      .filter((item) => item && typeof item === "object")
+      .map((item) => window.MMC.sanitizeMicroEntry(item))
+      .filter(Boolean);
+    if (!entries.length) {
+      throw new Error(
+        "Could not estimate vitamins and minerals from that. Try naming the foods and amounts."
+      );
+    }
+    return { entries };
+  }
+
   function normalizeLogPayload(data) {
     if (!data || typeof data !== "object") {
       throw new Error("Could not read that log. Try a bit more detail.");
@@ -429,5 +452,22 @@ window.MMC = window.MMC || {};
       ),
     });
     return normalizeLogPayload(data);
+  };
+
+  window.MMC.parseMicrosWithGrok = async function parseMicrosWithGrok(opts) {
+    const data = await callLlm({
+      provider: opts.provider,
+      apiKey: opts.apiKey,
+      model: opts.model,
+      task: "micros",
+      text: opts.text,
+      context: opts.context,
+      system: window.MMC.MICROS_SYSTEM_PROMPT,
+      user: withContext(
+        opts.context,
+        `Estimate essential vitamins and minerals for these foods. Return JSON entries:\n\n${opts.text}`
+      ),
+    });
+    return normalizeMicrosPayload(data);
   };
 })();

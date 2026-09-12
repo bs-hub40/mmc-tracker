@@ -397,6 +397,174 @@ button {
   color: var(--text-dim);
 }
 
+.text-btn {
+  border: none;
+  background: transparent;
+  color: var(--amber);
+  font-size: 0.78rem;
+  font-weight: 650;
+  padding: 0.2rem 0.15rem;
+}
+
+.micros-day-nav {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.45rem;
+  align-items: end;
+  margin-top: 0.85rem;
+}
+
+.micros-day-label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.micros-day-label .field-label {
+  margin: 0;
+}
+
+.micros-bars {
+  gap: 0.85rem;
+}
+
+.micro-group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.micro-group-title {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.micro-row {
+  grid-template-columns: 6.1rem 1fr auto;
+  gap: 0.45rem;
+  padding: 0.58rem 0.7rem;
+}
+
+.micro-row .macro-name {
+  flex-wrap: wrap;
+  gap: 0.28rem 0.35rem;
+}
+
+.micro-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+}
+
+.micro-chip.low {
+  background: color-mix(in srgb, var(--amber) 16%, transparent);
+  color: var(--amber);
+}
+
+.micro-chip.ok {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.micro-chip.high {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.micro-row.is-low {
+  border-color: color-mix(in srgb, var(--amber) 28%, var(--border));
+}
+
+.micro-row.is-ok {
+  border-color: color-mix(in srgb, var(--green) 26%, var(--border));
+}
+
+.micro-row.is-high {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--border));
+}
+
+.macro-fill.vitamin {
+  background: linear-gradient(90deg, #38bdf8, #818cf8);
+}
+
+.macro-fill.mineral {
+  background: linear-gradient(90deg, #2dd4bf, #34d399);
+}
+
+.macro-fill.ceiling {
+  background: linear-gradient(90deg, #f59e0b, var(--accent));
+}
+
+.macro-fill.ceiling.over {
+  background: linear-gradient(90deg, #ef4444, #f97316);
+}
+
+.micro-values {
+  min-width: 6.4rem;
+}
+
+.micro-pct {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.64rem;
+}
+
+.micros-footnote {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+#micros-from-meals-btn {
+  margin-top: 0.85rem;
+  width: 100%;
+}
+
+.micro-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  margin-top: 0.45rem;
+}
+
+.micro-highlight {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.edit-micro-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+@media (max-width: 380px) {
+  .mode-tab {
+    font-size: 0.7rem;
+    padding: 0.65rem 0.12rem;
+  }
+
+  .micro-row {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+
+  .micro-values {
+    text-align: left;
+  }
+}
+
 .log-panel,
 .meals-panel {
   width: 100%;
@@ -1204,8 +1372,8 @@ button {
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.3rem;
   padding: 0.3rem;
   border-radius: 14px;
   background: rgba(20, 24, 31, 0.92);
@@ -1218,8 +1386,8 @@ button {
   border-radius: 11px;
   background: transparent;
   color: var(--text-muted);
-  padding: 0.75rem 0.35rem;
-  font-size: 0.85rem;
+  padding: 0.7rem 0.2rem;
+  font-size: 0.75rem;
   font-weight: 650;
   transition: background 0.15s, color 0.15s;
 }
@@ -1228,6 +1396,13 @@ button {
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent) 10%, transparent));
   color: var(--amber);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+@media (min-width: 520px) {
+  .mode-tab {
+    font-size: 0.82rem;
+    padding: 0.75rem 0.35rem;
+  }
 }
 
 .mode-view {
