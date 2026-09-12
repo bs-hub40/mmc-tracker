@@ -117,12 +117,13 @@ const existing = [
   { id: "micro-b", source: "spinach salad", mealId: "" },
 ];
 assert(
-  MMC.findExistingMicroForMeal(existing, { id: "meal-1" }, "2 eggs").reason === "mealId",
-  "findExistingMicroForMeal prefers mealId"
+  MMC.findExistingMicroForMeal(existing, { id: "other" }, "2 eggs").reason === "rawText",
+  "findExistingMicroForMeal matches rawText even when mealId differs"
 );
 assert(
-  MMC.findExistingMicroForMeal(existing, { id: "other" }, "2 eggs").reason === "rawText",
-  "findExistingMicroForMeal matches rawText when mealId differs"
+  MMC.findExistingMicroForMeal(existing, { id: "meal-1" }, "2 scrambled eggs").reason ===
+    "mealId",
+  "findExistingMicroForMeal falls back to mealId when wording changed"
 );
 assert(
   !MMC.findExistingMicroForMeal(existing, { id: "new" }, "salmon"),
@@ -135,20 +136,20 @@ const planSkip = MMC.planAutoMicros(
 );
 assert(planSkip.pending.length === 0 && planSkip.skipped.length === 1, "planAutoMicros skips identical rawText");
 
-const planReplace = MMC.planAutoMicros(
+const planSkipMeal = MMC.planAutoMicros(
   [{ id: "meal-1", rawText: "2 scrambled eggs", items: [{ name: "Eggs" }] }],
   existing
 );
 assert(
-  planReplace.pending.length === 1 && planReplace.replaceIds[0] === "micro-a",
-  "planAutoMicros replaces prior auto entry for same meal id"
+  planSkipMeal.pending.length === 0 && planSkipMeal.skipped[0].reason === "mealId",
+  "planAutoMicros skips a meal that already has a linked micros entry"
 );
 
 const planAdd = MMC.planAutoMicros(
   [{ id: "meal-9", rawText: "6 oz salmon", items: [{ name: "Salmon" }] }],
   existing
 );
-assert(planAdd.pending.length === 1 && !planAdd.replaceIds.length, "planAutoMicros adds new food");
+assert(planAdd.pending.length === 1 && planAdd.skipped.length === 0, "planAutoMicros adds new food");
 
 const matched = MMC.matchMicroEntriesToMeals(
   [{ source: "6 oz salmon", items: [{ name: "Salmon" }] }],

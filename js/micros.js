@@ -407,46 +407,44 @@ Rules:
 
   /**
    * Best-effort dedupe for auto micros from a Nutrition food log:
-   * 1. If a day's micros entry already has the same normalized rawText/source,
-   *    skip — the user already estimated this food via Micros or "from meals".
-   * 2. Else if a prior auto entry is linked to this meal id, replace it.
+   * 1. Skip if a day's micros entry already has the same normalized
+   *    rawText/source (covers Micros-tab send and "from meals").
+   * 2. Skip if a micros entry is already linked to this meal id
+   *    (Nutrition already auto-estimated this sitting).
    * 3. Two Nutrition logs of the same wording on the same day still skip (1).
+   * Replace is not used: skip avoids a second AI call and double-count.
    */
   findExistingMicroForMeal(micros, meal, text) {
     const list = Array.isArray(micros) ? micros : [];
+    const key = window.MMC.normalizeMicroRaw(text || window.MMC.mealFoodText(meal));
+    if (key) {
+      const byRaw = list.find(
+        (entry) => window.MMC.normalizeMicroRaw(window.MMC.microEntryRaw(entry)) === key
+      );
+      if (byRaw) return { entry: byRaw, reason: "rawText" };
+    }
     const mealId = meal?.id != null ? String(meal.id) : "";
     if (mealId) {
       const byMeal = list.find((entry) => String(entry?.mealId || "") === mealId);
       if (byMeal) return { entry: byMeal, reason: "mealId" };
     }
-    const key = window.MMC.normalizeMicroRaw(text || window.MMC.mealFoodText(meal));
-    if (!key) return null;
-    const byRaw = list.find(
-      (entry) => window.MMC.normalizeMicroRaw(window.MMC.microEntryRaw(entry)) === key
-    );
-    return byRaw ? { entry: byRaw, reason: "rawText" } : null;
+    return null;
   },
 
   planAutoMicros(meals, existingMicros) {
     const pending = [];
     const skipped = [];
-    const replaceIds = [];
     (meals || []).forEach((meal) => {
       const text = window.MMC.mealFoodText(meal);
       if (!text) return;
       const hit = window.MMC.findExistingMicroForMeal(existingMicros, meal, text);
-      if (hit?.reason === "rawText") {
-        skipped.push({ meal, text, reason: "rawText" });
+      if (hit) {
+        skipped.push({ meal, text, reason: hit.reason });
         return;
       }
-      if (hit?.reason === "mealId") {
-        replaceIds.push(hit.entry.id);
-        pending.push({ meal, text, replaceId: hit.entry.id });
-        return;
-      }
-      pending.push({ meal, text, replaceId: null });
+      pending.push({ meal, text });
     });
-    return { pending, skipped, replaceIds };
+    return { pending, skipped };
   },
 
   matchMicroEntriesToMeals(entries, pending) {

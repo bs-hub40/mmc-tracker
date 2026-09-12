@@ -1481,16 +1481,6 @@
     return dest;
   }
 
-  function dropMicrosByIds(ids) {
-    const keys = (Array.isArray(ids) ? ids : [ids])
-      .map((id) => String(id || "").trim())
-      .filter(Boolean);
-    if (!keys.length) return;
-    invalidateDriveWrites();
-    addTombstones(state, "micros", keys);
-    keys.forEach((id) => dropHistoryItem("micros", id));
-  }
-
   async function estimateMicrosForLoggedMeals(meals, dateKey, opts = {}) {
     const origin = opts.origin || "nutrition-auto";
     const dest = clampEntryDate(dateKey, todayKey());
@@ -1507,8 +1497,6 @@
       text,
       context: buildPersonContext(),
     });
-    const replaceIds = [...new Set((plan.replaceIds || []).map((id) => String(id || "").trim()).filter(Boolean))];
-    if (replaceIds.length) dropMicrosByIds(replaceIds);
     const matched = matchMicroEntriesToMeals(result.entries || [], plan.pending);
     const committed = [];
     matched.forEach(({ entry, pending }) => {
