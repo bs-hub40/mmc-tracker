@@ -50,6 +50,8 @@
     formatMicroAmount,
     sanitizeMicroEntry,
     retotalMicroEntry,
+    planAutoMicros,
+    matchMicroEntriesToMeals,
     AI_PROVIDERS,
     getActiveApiKey,
     normalizeProvider,
@@ -1428,19 +1430,15 @@
   function commitMealLog(parsed, rawText, dateKey) {
     const { source, ...meal } = parsed;
     const id = uid();
-    const dest = appendHistoryEntry(
-      state,
-      "meal",
-      {
-        id,
-        loggedAt: Date.now(),
-        rawText: source || rawText,
-        ...meal,
-      },
-      dateKey
-    ).dateKey;
+    const entry = {
+      id,
+      loggedAt: Date.now(),
+      rawText: source || rawText,
+      ...meal,
+    };
+    appendHistoryEntry(state, "meal", entry, dateKey);
     lastLoggedIds.meals.push(id);
-    return dest;
+    return entry;
   }
 
   function commitActivityLog(parsed, rawText, dateKey) {
@@ -1462,7 +1460,7 @@
     return dest;
   }
 
-  function commitMicroLog(parsed, rawText, dateKey) {
+  function commitMicroLog(parsed, rawText, dateKey, extra = {}) {
     const cleaned = sanitizeMicroEntry(parsed);
     if (!cleaned) return null;
     const id = uid();
@@ -1473,12 +1471,42 @@
         id,
         loggedAt: Date.now(),
         rawText: cleaned.source || rawText,
+        mealId: extra.mealId ? String(extra.mealId) : "",
+        origin: extra.origin || "",
         ...cleaned,
       },
       dateKey
     ).dateKey;
     lastLoggedIds.micros.push(id);
     return dest;
+  }
+
+  async function estimateMicrosForLoggedMeals(meals, dateKey, opts = {}) {
+    const origin = opts.origin || "nutrition-auto";
+    const dest = clampEntryDate(dateKey, todayKey());
+    const day = peekDay(state, dest);
+    const plan = planAutoMicros(meals, day.micros || []);
+    if (!plan.pending.length) {
+      return { added: 0, skipped: plan.skipped.length, entries: [] };
+    }
+    const text = plan.pending.map((item) => item.text).join("\n");
+    const result = await parseMicrosWithGrok({
+      provider: state.provider,
+      apiKey: getActiveApiKey(state),
+      model: state.model,
+      text,
+      context: buildPersonContext(),
+    });
+    const matched = matchMicroEntriesToMeals(result.entries || [], plan.pending);
+    const committed = [];
+    matched.forEach(({ entry, pending }) => {
+      const saved = commitMicroLog(entry, pending?.text || text, dest, {
+        mealId: pending?.meal?.id || "",
+        origin,
+      });
+      if (saved) committed.push(entry);
+    });
+    return { added: committed.length, skipped: plan.skipped.length, entries: committed };
   }
 
   function focusNewEntry(kind, dateKey) {
@@ -1557,7 +1585,7 @@
     return base;
   }
 
-  function logQuickAction(action) {
+  async function logQuickAction(action) {
     state = ensureToday(state);
     if (action.parsed) {
       const parsed = clonePayload(action.parsed);
@@ -1571,16 +1599,41 @@
       }
       if (kind === "activity") {
         commitActivityLog(parsed, raw, dest);
-      } else {
-        commitMealLog(parsed, raw, dest);
+        persist();
+        revealLoggedKind(kind, dest);
+        renderAll();
+        const msg =
+          dest !== todayKey()
+            ? `Logged ${action.label} for ${shortEntryDateLabel(dest)}`
+            : `Logged ${action.label}`;
+        setHint(els.logHint, msg, true);
+        showToast(msg, true);
+        focusNewEntry(kind, dest);
+        return;
       }
+      const meal = commitMealLog(parsed, raw, dest);
       persist();
       revealLoggedKind(kind, dest);
       renderAll();
-      const msg =
+      let msg =
         dest !== todayKey()
           ? `Logged ${action.label} for ${shortEntryDateLabel(dest)}`
           : `Logged ${action.label}`;
+      if (hasAiAccess()) {
+        setBusy(true);
+        try {
+          const microResult = await estimateMicrosForLoggedMeals([meal], dest);
+          if (microResult.added) {
+            persist();
+            renderAll();
+            msg = `${msg} + micros`;
+          }
+        } catch {
+          msg = `${msg} · micros skipped`;
+        } finally {
+          setBusy(false);
+        }
+      }
       setHint(els.logHint, msg, true);
       showToast(msg, true);
       focusNewEntry(kind, dest);
@@ -1987,10 +2040,9 @@
     }
 
     const showMark = burned > 0;
-    const valueRight =
-      leftTowardGoal >= 0
-        ? `${round1(leftTowardGoal)} left`
-        : `${round1(Math.abs(leftTowardGoal))} over`;
+    const goalPct =
+      t.calories > 0 ? Math.round((foodKcal / t.calories) * 100) : null;
+    const valueRight = goalPct == null ? "" : `${goalPct}% of goal`;
     const deficitLabel = burned > 0
       ? `maint<span class="budget-mark-sub">+burn</span>`
       : "maint";
@@ -2810,22 +2862,38 @@
       showToast("AI is not available right now", false);
       return;
     }
-    const day = microsDay();
-    const texts = (day.meals || [])
-      .map((meal) => {
-        const raw = String(meal.rawText || "").trim();
-        if (raw) return raw;
-        return (meal.items || []).map((item) => item.name).filter(Boolean).join(", ");
-      })
-      .filter(Boolean);
-    if (!texts.length) {
+    const dest = selectedMicroDate();
+    const day = peekDay(state, dest);
+    if (!(day.meals || []).length) {
       setHint(els.logHint, "No meals on this day to estimate from.");
       return;
     }
     setHint(els.logHint, "");
     setBusy(true);
     try {
-      await handleMicrosLog(texts.join("\n"), { keepText: true });
+      lastLoggedIds = { meals: [], activities: [], micros: [] };
+      const result = await estimateMicrosForLoggedMeals(day.meals, dest, {
+        origin: "from-meals",
+      });
+      if (!result.added) {
+        const msg = result.skipped
+          ? "Those meals already have micros for this day."
+          : "Could not estimate micros from those meals.";
+        setHint(els.logHint, msg);
+        showToast(msg, !result.skipped ? false : true);
+        return;
+      }
+      persist();
+      revealLoggedKind("micros", dest);
+      renderAll();
+      const msg = logMessage({
+        micros: result.entries || [],
+        kind: "micros",
+        dateKey: dest,
+      });
+      setHint(els.logHint, msg, true);
+      showToast(msg, true);
+      focusNewEntry("micros", dest);
     } catch (err) {
       const msg = err.message || "Could not estimate micros from those meals.";
       setHint(els.logHint, msg);
@@ -2872,29 +2940,44 @@
       });
       const dest = readLogDate();
       lastLoggedIds = { meals: [], activities: [], micros: [] };
-      (result.meals || []).forEach((meal) => commitMealLog(meal, text, dest));
+      const committedMeals = (result.meals || []).map((meal) =>
+        commitMealLog(meal, text, dest)
+      );
       const keptActs = [];
       for (const act of result.activities || []) {
         if (!confirmIfDuplicateActivity(act, dest)) continue;
         keptActs.push(act);
         commitActivityLog(act, text, dest);
       }
-      if (!(result.meals || []).length && !keptActs.length) {
+      if (!committedMeals.length && !keptActs.length) {
         setHint(els.logHint, "Duplicate activity not logged.");
         return;
       }
       persist();
       if (!fromQuick) els.logInput.value = "";
       const kind =
-        keptActs.length && !(result.meals || []).length ? "activity" : result.kind;
+        keptActs.length && !committedMeals.length ? "activity" : result.kind;
+      let microsNote = "";
+      if (committedMeals.length) {
+        try {
+          const microResult = await estimateMicrosForLoggedMeals(committedMeals, dest);
+          if (microResult.added) {
+            persist();
+            microsNote = " + micros";
+          }
+        } catch {
+          microsNote = " · micros skipped";
+        }
+      }
       revealLoggedKind(kind, dest);
       renderAll();
-      const msg = logMessage({
-        meals: result.meals || [],
-        activities: keptActs,
-        kind,
-        dateKey: dest,
-      });
+      const msg =
+        logMessage({
+          meals: result.meals || [],
+          activities: keptActs,
+          kind,
+          dateKey: dest,
+        }) + microsNote;
       setHint(els.logHint, msg, true);
       showToast(msg, true);
       focusNewEntry(kind === "activity" ? "activity" : "food", dest);

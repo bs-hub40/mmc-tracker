@@ -105,6 +105,58 @@ assert(
   "applyTombstones drops deleted micros"
 );
 
+assert(MMC.mealFoodText({ rawText: "2 eggs" }) === "2 eggs", "mealFoodText prefers rawText");
+assert(
+  MMC.mealFoodText({ items: [{ name: "Eggs" }, { name: "Toast" }] }) === "Eggs, Toast",
+  "mealFoodText falls back to item names"
+);
+assert(MMC.normalizeMicroRaw("  2   Eggs\n") === "2 eggs", "normalizeMicroRaw collapses space/case");
+
+const existing = [
+  { id: "micro-a", rawText: "2 eggs", mealId: "meal-1" },
+  { id: "micro-b", source: "spinach salad", mealId: "" },
+];
+assert(
+  MMC.findExistingMicroForMeal(existing, { id: "other" }, "2 eggs").reason === "rawText",
+  "findExistingMicroForMeal matches rawText even when mealId differs"
+);
+assert(
+  MMC.findExistingMicroForMeal(existing, { id: "meal-1" }, "2 scrambled eggs").reason ===
+    "mealId",
+  "findExistingMicroForMeal falls back to mealId when wording changed"
+);
+assert(
+  !MMC.findExistingMicroForMeal(existing, { id: "new" }, "salmon"),
+  "findExistingMicroForMeal misses unknown food"
+);
+
+const planSkip = MMC.planAutoMicros(
+  [{ id: "new", rawText: "2 eggs", items: [{ name: "Eggs" }] }],
+  existing
+);
+assert(planSkip.pending.length === 0 && planSkip.skipped.length === 1, "planAutoMicros skips identical rawText");
+
+const planSkipMeal = MMC.planAutoMicros(
+  [{ id: "meal-1", rawText: "2 scrambled eggs", items: [{ name: "Eggs" }] }],
+  existing
+);
+assert(
+  planSkipMeal.pending.length === 0 && planSkipMeal.skipped[0].reason === "mealId",
+  "planAutoMicros skips a meal that already has a linked micros entry"
+);
+
+const planAdd = MMC.planAutoMicros(
+  [{ id: "meal-9", rawText: "6 oz salmon", items: [{ name: "Salmon" }] }],
+  existing
+);
+assert(planAdd.pending.length === 1 && planAdd.skipped.length === 0, "planAutoMicros adds new food");
+
+const matched = MMC.matchMicroEntriesToMeals(
+  [{ source: "6 oz salmon", items: [{ name: "Salmon" }] }],
+  planAdd.pending
+);
+assert(matched[0].pending.meal.id === "meal-9", "matchMicroEntriesToMeals links the only pending meal");
+
 if (failed) {
   console.error(`\n${failed} failed`);
   process.exit(1);
