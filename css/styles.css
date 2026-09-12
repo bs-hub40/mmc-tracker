@@ -507,6 +507,22 @@ button {
   min-height: 0;
 }
 
+.log-date-row {
+  margin-top: 0.75rem;
+}
+
+.log-date-row .field-label {
+  margin-bottom: 0.35rem;
+}
+
+.log-date-row .edit-date-input {
+  max-width: 100%;
+}
+
+.log-date-help {
+  margin: 0.4rem 0 0;
+}
+
 .log-actions {
   margin-top: 0.75rem;
 }

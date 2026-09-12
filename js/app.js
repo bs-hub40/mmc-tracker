@@ -4,6 +4,7 @@
     saveState,
     formatTime,
     parseKey,
+    shiftKey,
     todayKey,
     round1,
     getDay,
@@ -32,6 +33,7 @@
     entryDateBounds,
     clampEntryDate,
     locateHistoryEntry,
+    appendHistoryEntry,
     moveHistoryEntry,
     getSession,
     loginWithGoogle,
@@ -259,7 +261,40 @@
     ).join("");
   }
 
+  function shortEntryDateLabel(dateKey) {
+    return parseKey(dateKey).toLocaleDateString([], {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+  }
+
+  function readDateInput(el, fallback) {
+    return clampEntryDate(el?.value, fallback);
+  }
+
+  function readLogDate() {
+    return readDateInput(els.logDate, todayKey());
+  }
+
+  function syncLogDateControl() {
+    const el = els.logDate;
+    if (!el) return;
+    const bounds = entryDateBounds();
+    el.min = bounds.min;
+    el.max = bounds.max;
+    el.value = clampEntryDate(el.value, todayKey());
+  }
+
+  function refreshLogButtonLabel() {
+    if (logBusy) return;
+    const text = els.logBtn?.querySelector(".btn-text");
+    if (text) text.textContent = logButtonLabel();
+  }
+
   function logButtonLabel() {
+    const dest = els.logDate ? readLogDate() : todayKey();
+    if (dest !== todayKey()) return `Log It for ${shortEntryDateLabel(dest)}`;
     return "Log It";
   }
 
@@ -320,6 +355,7 @@
     dailyTracker: document.getElementById("daily-tracker"),
     logLabel: document.getElementById("log-label"),
     logInput: document.getElementById("log-input"),
+    logDate: document.getElementById("log-date"),
     logBtn: document.getElementById("log-btn"),
     micBtn: document.getElementById("mic-btn"),
     logHint: document.getElementById("log-hint"),
@@ -647,6 +683,7 @@
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
       if (els.micBtn) els.micBtn.disabled = logBusy || !ready;
+      if (els.logDate) els.logDate.disabled = logBusy || !ready;
     }
     renderQuickActions();
   }
@@ -749,6 +786,7 @@
     els.logBtn.disabled = busy || !ready;
     els.logInput.disabled = busy || !ready;
     if (els.micBtn) els.micBtn.disabled = busy || !ready;
+    if (els.logDate) els.logDate.disabled = busy || !ready;
     if (busy) stopSpeech();
     const spinner = els.logBtn.querySelector(".btn-spinner");
     const text = els.logBtn.querySelector(".btn-text");
@@ -829,6 +867,7 @@
       const text = els.logBtn.querySelector(".btn-text");
       if (text) text.textContent = logButtonLabel();
     }
+    syncLogDateControl();
     syncAiGate();
   }
 
@@ -1300,37 +1339,53 @@
     return Boolean(first && first.caloriesBurned != null && first.protein == null);
   }
 
-  function commitMealLog(parsed, rawText) {
+  function commitMealLog(parsed, rawText, dateKey) {
     const { source, ...meal } = parsed;
     const id = uid();
-    today().meals.push({
-      id,
-      loggedAt: Date.now(),
-      date: todayKey(),
-      rawText: source || rawText,
-      ...meal,
-    });
+    const dest = appendHistoryEntry(
+      state,
+      "meal",
+      {
+        id,
+        loggedAt: Date.now(),
+        rawText: source || rawText,
+        ...meal,
+      },
+      dateKey
+    ).dateKey;
     lastLoggedIds.meals.push(id);
-    return id;
+    return dest;
   }
 
-  function commitActivityLog(parsed, rawText) {
+  function commitActivityLog(parsed, rawText, dateKey) {
     const { source, ...activity } = parsed;
     const id = uid();
-    today().activities.push({
-      id,
-      loggedAt: Date.now(),
-      date: todayKey(),
-      rawText: source || rawText,
-      text: source || rawText,
-      ...activity,
-    });
+    const dest = appendHistoryEntry(
+      state,
+      "activity",
+      {
+        id,
+        loggedAt: Date.now(),
+        rawText: source || rawText,
+        text: source || rawText,
+        ...activity,
+      },
+      dateKey
+    ).dateKey;
     lastLoggedIds.activities.push(id);
-    return id;
+    return dest;
   }
 
-  function focusNewEntry(kind) {
-    const list = kind === "activity" ? els.activityList : els.mealList;
+  function focusNewEntry(kind, dateKey) {
+    const dest = clampEntryDate(dateKey, todayKey());
+    const list =
+      dest !== todayKey()
+        ? (currentView === "month" ? els.monthDayLog : els.weekDayLog)?.querySelector(
+            ".meal-list"
+          )
+        : kind === "activity"
+          ? els.activityList
+          : els.mealList;
     const card = list?.querySelector(".is-new");
     if (!card) return;
     requestAnimationFrame(() => {
@@ -1341,7 +1396,15 @@
     });
   }
 
-  function revealLoggedKind(kind) {
+  function revealLoggedKind(kind, dateKey) {
+    const dest = clampEntryDate(dateKey, todayKey());
+    if (dest !== todayKey()) {
+      selectedTrendDay = dest;
+      const weekStart = shiftKey(todayKey(), -6);
+      if (currentMode !== "nutrition") setMode("nutrition");
+      setView(dest >= weekStart ? "week" : "month");
+      return;
+    }
     if (kind === "activity") {
       if (currentMode !== "activity") setMode("activity");
       return;
@@ -1369,7 +1432,10 @@
       const kcal = acts.reduce((sum, act) => sum + (Number(act.totalCaloriesBurned) || 0), 0);
       bits.push(`${acts.length} activities · ${round1(kcal)} kcal burned`);
     }
-    return bits.length ? `Logged ${bits.join(" and ")}` : "Logged";
+    const base = bits.length ? `Logged ${bits.join(" and ")}` : "Logged";
+    const dest = result.dateKey ? clampEntryDate(result.dateKey, todayKey()) : todayKey();
+    if (dest !== todayKey()) return `${base} for ${shortEntryDateLabel(dest)}`;
+    return base;
   }
 
   function logQuickAction(action) {
@@ -1377,24 +1443,28 @@
     if (action.parsed) {
       const parsed = clonePayload(action.parsed);
       const raw = action.prompt || action.label;
+      const dest = readLogDate();
       lastLoggedIds = { meals: [], activities: [] };
       const kind = isActivityPayload(parsed) ? "activity" : "food";
-      if (kind === "activity" && !confirmIfDuplicateActivity(parsed)) {
+      if (kind === "activity" && !confirmIfDuplicateActivity(parsed, dest)) {
         setHint(els.logHint, "Duplicate activity not logged.");
         return;
       }
       if (kind === "activity") {
-        commitActivityLog(parsed, raw);
+        commitActivityLog(parsed, raw, dest);
       } else {
-        commitMealLog(parsed, raw);
+        commitMealLog(parsed, raw, dest);
       }
       persist();
-      revealLoggedKind(kind);
+      revealLoggedKind(kind, dest);
       renderAll();
-      const msg = `Logged ${action.label}`;
+      const msg =
+        dest !== todayKey()
+          ? `Logged ${action.label} for ${shortEntryDateLabel(dest)}`
+          : `Logged ${action.label}`;
       setHint(els.logHint, msg, true);
       showToast(msg, true);
-      focusNewEntry(kind);
+      focusNewEntry(kind, dest);
       return;
     }
     handleLog(action.prompt);
@@ -1574,7 +1644,7 @@
   }
 
   function readEditDateFromForm(fallback) {
-    return clampEntryDate(document.getElementById("edit-date")?.value, fallback);
+    return readDateInput(document.getElementById("edit-date"), fallback);
   }
 
   function restoreEditDate(pendingDate) {
@@ -1585,12 +1655,7 @@
 
   function revealMovedEntry(dateKey) {
     selectedTrendDay = dateKey;
-    const label = parseKey(dateKey).toLocaleDateString([], {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-    });
-    showToast(`Moved to ${label}`, true);
+    showToast(`Moved to ${shortEntryDateLabel(dateKey)}`, true);
   }
 
   function saveEntryAsQuickAction(type, id) {
@@ -2041,18 +2106,25 @@
     return true;
   }
 
-  function findNearDuplicateActivity(parsed) {
-    return today().activities.find((act) => isNearDuplicateActivity(act, parsed)) || null;
+  function findNearDuplicateActivity(parsed, dateKey) {
+    const dest = clampEntryDate(dateKey, todayKey());
+    return (
+      getDay(state, dest).activities.find((act) => isNearDuplicateActivity(act, parsed)) ||
+      null
+    );
   }
 
-  function confirmIfDuplicateActivity(parsed) {
-    const hit = findNearDuplicateActivity(parsed);
+  function confirmIfDuplicateActivity(parsed, dateKey) {
+    const dest = clampEntryDate(dateKey, todayKey());
+    const hit = findNearDuplicateActivity(parsed, dest);
     if (!hit) return true;
     const title = activityTitle(hit);
     const when = formatTime(hit.loggedAt);
     const kcal = round1(hit.totalCaloriesBurned || 0);
+    const dayBit =
+      dest === todayKey() ? `today at ${when}` : `on ${shortEntryDateLabel(dest)}`;
     return window.confirm(
-      `You already logged ${title} today at ${when} (${kcal} kcal burned). Log another?`
+      `You already logged ${title} ${dayBit} (${kcal} kcal burned). Log another?`
     );
   }
 
@@ -2430,6 +2502,8 @@
     updateLogVisibility();
     renderQuickActions();
     updateLogJump();
+    syncLogDateControl();
+    refreshLogButtonLabel();
   }
 
   async function handleLog(presetText) {
@@ -2458,13 +2532,14 @@
         text,
         context: buildPersonContext(),
       });
+      const dest = readLogDate();
       lastLoggedIds = { meals: [], activities: [] };
-      (result.meals || []).forEach((meal) => commitMealLog(meal, text));
+      (result.meals || []).forEach((meal) => commitMealLog(meal, text, dest));
       const keptActs = [];
       for (const act of result.activities || []) {
-        if (!confirmIfDuplicateActivity(act)) continue;
+        if (!confirmIfDuplicateActivity(act, dest)) continue;
         keptActs.push(act);
-        commitActivityLog(act, text);
+        commitActivityLog(act, text, dest);
       }
       if (!(result.meals || []).length && !keptActs.length) {
         setHint(els.logHint, "Duplicate activity not logged.");
@@ -2474,16 +2549,17 @@
       if (!fromQuick) els.logInput.value = "";
       const kind =
         keptActs.length && !(result.meals || []).length ? "activity" : result.kind;
-      revealLoggedKind(kind);
+      revealLoggedKind(kind, dest);
       renderAll();
       const msg = logMessage({
         meals: result.meals || [],
         activities: keptActs,
         kind,
+        dateKey: dest,
       });
       setHint(els.logHint, msg, true);
       showToast(msg, true);
-      focusNewEntry(kind === "activity" ? "activity" : "food");
+      focusNewEntry(kind === "activity" ? "activity" : "food", dest);
     } catch (err) {
       const providerLabel = AI_PROVIDERS[normalizeProvider(state.provider)]?.label || "AI";
       const msg = err.message || `Failed to parse with ${providerLabel}.`;
@@ -3548,6 +3624,8 @@
     });
 
     els.logBtn.addEventListener("click", () => handleLog());
+    els.logDate?.addEventListener("input", refreshLogButtonLabel);
+    els.logDate?.addEventListener("change", refreshLogButtonLabel);
     els.micBtn?.addEventListener("click", () => toggleSpeech());
     if (els.micBtn && !speechEngine()) els.micBtn.hidden = true;
     els.logInput.addEventListener("keydown", (e) => {
