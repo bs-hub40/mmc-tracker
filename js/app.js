@@ -69,6 +69,8 @@
     applyTombstones,
     mergeTombstones,
     invalidateDriveWrites,
+    sumMealItems,
+    removeMealFoodItemAt,
   } = window.MMC;
 
   const GLOSSARY = [
@@ -483,6 +485,8 @@
 
   let editTarget = null;
   let pendingQaSave = null;
+  let pendingItemRemove = null;
+  let pendingItemRemoveTimer = null;
   let toastTimer = null;
   let logBusy = false;
   let setupQueue = [];
@@ -1970,17 +1974,44 @@
     els.macros.innerHTML = rows + legend;
   }
 
+  function mealTitle(meal) {
+    const items = Array.isArray(meal.items) ? meal.items : [];
+    const names = items.map((item) => item.name).filter(Boolean);
+    const label = String(meal.label || "").trim();
+    if (label && !/^meal$/i.test(label)) return label;
+    if (items.length > 1) return "Meal";
+    return names[0] || "Meal";
+  }
+
+  function foodItemRowHtml(mealId, item, index) {
+    const name = item?.name || "Item";
+    return `
+      <li>
+        <div class="food-line">
+          <span class="food-line-name">${escapeHtml(name)}</span>
+          <span class="food-line-kcal">${round1(item?.calories || 0)} kcal</span>
+          <button type="button" class="meal-item-remove" data-remove-meal-item="${escapeHtml(
+            mealId
+          )}" data-item-index="${index}" aria-label="Remove ${escapeHtml(name)}">Remove</button>
+        </div>
+      </li>
+    `;
+  }
+
   function mealCardHtml(meal) {
-    const names = (meal.items || [])
-      .map((item) => escapeHtml(item.name))
-      .join(", ");
+    const items = Array.isArray(meal.items) ? meal.items : [];
+    const multi = items.length > 1;
+    const title = escapeHtml(mealTitle(meal));
+    const rows = multi
+      ? items.map((item, i) => foodItemRowHtml(meal.id, item, i)).join("")
+      : "";
 
     return `
       <li class="meal-item${lastLoggedIds.meals.includes(meal.id) ? " is-new" : ""}">
         <div class="meal-top">
           <div>
             <div class="meal-time">${formatTime(meal.loggedAt)}</div>
-            <div class="activity-name">${names || "Meal"}</div>
+            <div class="activity-name">${title}</div>
           </div>
           <div class="entry-actions">
             <button type="button" class="meal-edit" data-qa-from-meal="${meal.id}">Add Shortcut</button>
@@ -1988,6 +2019,7 @@
             <button type="button" class="meal-delete" data-delete-meal="${meal.id}">Delete</button>
           </div>
         </div>
+        ${rows ? `<ul class="meal-items">${rows}</ul>` : ""}
         <div class="meal-totals">
           <span>${round1(meal.totalCalories)} kcal</span>
           <span>P ${round1(meal.totalProtein)}g</span>
@@ -2610,14 +2642,85 @@
     });
   }
 
-  function deleteMeal(id) {
-    if (!confirm("Delete this meal?")) return;
+  function clearPendingItemRemove() {
+    if (pendingItemRemove) {
+      pendingItemRemove.classList.remove("is-confirm");
+      pendingItemRemove.textContent = pendingItemRemove.dataset.label || "Remove";
+      pendingItemRemove = null;
+    }
+    if (pendingItemRemoveTimer) {
+      clearTimeout(pendingItemRemoveTimer);
+      pendingItemRemoveTimer = null;
+    }
+  }
+
+  function requestItemRemove(btn, onConfirm) {
+    if (!btn) return;
+    if (pendingItemRemove === btn) {
+      clearPendingItemRemove();
+      onConfirm();
+      return;
+    }
+    clearPendingItemRemove();
+    pendingItemRemove = btn;
+    btn.dataset.label = btn.dataset.label || btn.textContent.trim() || "Remove";
+    btn.classList.add("is-confirm");
+    btn.textContent = "Remove?";
+    pendingItemRemoveTimer = window.setTimeout(clearPendingItemRemove, 4000);
+  }
+
+  function removeMealFoodItem(mealId, itemIndex) {
+    const loc = locateHistoryEntry(state, "meal", mealId);
+    if (!loc) return;
+
+    const editingThis =
+      editTarget?.type === "meal" &&
+      String(editTarget.id) === String(mealId) &&
+      els.editModal &&
+      !els.editModal.hidden;
+    if (editingThis) {
+      Object.assign(loc.entry, readMealEditsFromForm());
+    }
+
+    const result = removeMealFoodItemAt(loc.entry, itemIndex);
+    if (!result.removed) return;
+
+    if (result.emptied) {
+      invalidateDriveWrites();
+      addTombstones(state, "meals", mealId);
+      dropHistoryItem("meals", mealId);
+      persist();
+      renderAll();
+      if (editingThis) closeEditModal();
+      showToast("Meal deleted", true);
+      return;
+    }
+
+    const pendingDate = editingThis ? document.getElementById("edit-date")?.value : "";
+    Object.assign(loc.entry, result.meal);
+    loc.entry.updatedAt = Date.now();
+    persist();
+    renderAll();
+    if (editingThis) {
+      openEditMeal(mealId);
+      restoreEditDate(pendingDate);
+    }
+    const name = String(result.removed?.name || "item").trim() || "item";
+    showToast(`Removed ${name}`, true);
+  }
+
+  function dropMealNow(id) {
     invalidateDriveWrites();
     addTombstones(state, "meals", id);
     dropHistoryItem("meals", id);
     persist();
     renderAll();
     showToast("Meal deleted", true);
+  }
+
+  function deleteMeal(id) {
+    if (!confirm("Delete this meal?")) return;
+    dropMealNow(id);
   }
 
   function deleteActivity(id) {
@@ -2641,6 +2744,7 @@
   }
 
   function closeEditModal() {
+    clearPendingItemRemove();
     editTarget = null;
     els.editModal.hidden = true;
     els.editBody.innerHTML = "";
@@ -2669,9 +2773,14 @@
           .map(
             (item, i) => `
           <div class="edit-item-card" data-item-index="${i}">
-            <label>Name
-              <input class="field-input" data-field="name" value="${escapeHtml(item.name || "")}" />
-            </label>
+            <div class="edit-item-head">
+              <label>Name
+                <input class="field-input" data-field="name" value="${escapeHtml(item.name || "")}" />
+              </label>
+              <button type="button" class="meal-item-remove" data-remove-edit-item data-item-index="${i}" aria-label="Remove ${escapeHtml(
+                item.name || "item"
+              )}">Remove</button>
+            </div>
             <div class="edit-item-grid">
               <label>Calories<input class="field-input" type="number" step="0.1" data-field="calories" value="${round1(item.calories || 0)}" /></label>
               <label>Protein<input class="field-input" type="number" step="0.1" data-field="protein" value="${round1(item.protein || 0)}" /></label>
@@ -2782,18 +2891,7 @@
       carbs: Number(card.querySelector('[data-field="carbs"]').value) || 0,
       fiber: Number(card.querySelector('[data-field="fiber"]').value) || 0,
     }));
-    const totals = items.reduce(
-      (acc, item) => {
-        acc.totalCalories += item.calories;
-        acc.totalProtein += item.protein;
-        acc.totalFat += item.fat;
-        acc.totalCarbs += item.carbs;
-        acc.totalFiber += item.fiber;
-        return acc;
-      },
-      { totalCalories: 0, totalProtein: 0, totalFat: 0, totalCarbs: 0, totalFiber: 0 }
-    );
-    return { rawText, items, ...totals };
+    return { rawText, items, ...sumMealItems(items) };
   }
 
   function readActivityEditsFromForm() {
@@ -3636,6 +3734,17 @@
     });
 
     function handleEntryListClick(e) {
+      const removeItem = e.target.closest("[data-remove-meal-item]");
+      if (removeItem) {
+        requestItemRemove(removeItem, () => {
+          removeMealFoodItem(
+            removeItem.getAttribute("data-remove-meal-item"),
+            Number(removeItem.getAttribute("data-item-index"))
+          );
+        });
+        return;
+      }
+      clearPendingItemRemove();
       const saveMeal = e.target.closest("[data-qa-from-meal]");
       if (saveMeal) {
         saveEntryAsQuickAction("nutrition", saveMeal.getAttribute("data-qa-from-meal"));
@@ -3796,6 +3905,12 @@
     els.editClose.addEventListener("click", closeEditModal);
     els.editSave.addEventListener("click", saveEdit);
     els.editReparse.addEventListener("click", reparseEdit);
+    els.editBody.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-edit-item]");
+      if (!btn || !editTarget || editTarget.type !== "meal") return;
+      const index = Number(btn.getAttribute("data-item-index"));
+      requestItemRemove(btn, () => removeMealFoodItem(editTarget.id, index));
+    });
     els.editModal.addEventListener("click", (e) => {
       if (e.target === els.editModal) closeEditModal();
     });

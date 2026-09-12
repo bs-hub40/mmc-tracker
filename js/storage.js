@@ -1107,6 +1107,36 @@ Rules:
     );
   },
 
+  sumMealItems(items) {
+    return (items || []).reduce(
+      (acc, item) => {
+        acc.totalCalories += Number(item?.calories) || 0;
+        acc.totalProtein += Number(item?.protein) || 0;
+        acc.totalFat += Number(item?.fat) || 0;
+        acc.totalCarbs += Number(item?.carbs) || 0;
+        acc.totalFiber += Number(item?.fiber) || 0;
+        return acc;
+      },
+      { totalCalories: 0, totalProtein: 0, totalFat: 0, totalCarbs: 0, totalFiber: 0 }
+    );
+  },
+
+  removeMealFoodItemAt(meal, index) {
+    if (!meal) return { emptied: true, meal: null, removed: null };
+    const items = Array.isArray(meal.items) ? meal.items.slice() : [];
+    const idx = Number(index);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) {
+      return { emptied: false, meal, removed: null };
+    }
+    const [removed] = items.splice(idx, 1);
+    if (!items.length) {
+      return { emptied: true, meal: null, removed };
+    }
+    const next = { ...meal, items };
+    Object.assign(next, window.MMC.sumMealItems(items));
+    return { emptied: false, meal: next, removed };
+  },
+
   activityBurn(activities) {
     return (activities || []).reduce((sum, act) => {
       const burned =
