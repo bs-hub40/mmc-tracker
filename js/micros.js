@@ -384,6 +384,98 @@ Rules:
     };
   },
 
+  // Food text used to estimate micros for a logged meal (raw log, else item names).
+  mealFoodText(meal) {
+    const raw = String(meal?.rawText || meal?.source || "").trim();
+    if (raw) return raw;
+    return (meal?.items || [])
+      .map((item) => String(item?.name || "").trim())
+      .filter(Boolean)
+      .join(", ");
+  },
+
+  normalizeMicroRaw(text) {
+    return String(text || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  },
+
+  microEntryRaw(entry) {
+    return String(entry?.rawText || entry?.source || "").trim();
+  },
+
+  /**
+   * Best-effort dedupe for auto micros from a Nutrition food log:
+   * 1. If a day's micros entry already has the same normalized rawText/source,
+   *    skip — the user already estimated this food via Micros or "from meals".
+   * 2. Else if a prior auto entry is linked to this meal id, replace it.
+   * 3. Two Nutrition logs of the same wording on the same day still skip (1).
+   */
+  findExistingMicroForMeal(micros, meal, text) {
+    const list = Array.isArray(micros) ? micros : [];
+    const mealId = meal?.id != null ? String(meal.id) : "";
+    if (mealId) {
+      const byMeal = list.find((entry) => String(entry?.mealId || "") === mealId);
+      if (byMeal) return { entry: byMeal, reason: "mealId" };
+    }
+    const key = window.MMC.normalizeMicroRaw(text || window.MMC.mealFoodText(meal));
+    if (!key) return null;
+    const byRaw = list.find(
+      (entry) => window.MMC.normalizeMicroRaw(window.MMC.microEntryRaw(entry)) === key
+    );
+    return byRaw ? { entry: byRaw, reason: "rawText" } : null;
+  },
+
+  planAutoMicros(meals, existingMicros) {
+    const pending = [];
+    const skipped = [];
+    const replaceIds = [];
+    (meals || []).forEach((meal) => {
+      const text = window.MMC.mealFoodText(meal);
+      if (!text) return;
+      const hit = window.MMC.findExistingMicroForMeal(existingMicros, meal, text);
+      if (hit?.reason === "rawText") {
+        skipped.push({ meal, text, reason: "rawText" });
+        return;
+      }
+      if (hit?.reason === "mealId") {
+        replaceIds.push(hit.entry.id);
+        pending.push({ meal, text, replaceId: hit.entry.id });
+        return;
+      }
+      pending.push({ meal, text, replaceId: null });
+    });
+    return { pending, skipped, replaceIds };
+  },
+
+  matchMicroEntriesToMeals(entries, pending) {
+    const list = Array.isArray(entries) ? entries : [];
+    const queue = Array.isArray(pending) ? pending : [];
+    if (!list.length || !queue.length) {
+      return list.map((entry) => ({ entry, pending: null }));
+    }
+    if (queue.length === 1) {
+      return list.map((entry) => ({ entry, pending: queue[0] }));
+    }
+    if (list.length === queue.length) {
+      return list.map((entry, i) => ({ entry, pending: queue[i] }));
+    }
+    const used = new Set();
+    return list.map((entry) => {
+      const src = window.MMC.normalizeMicroRaw(entry?.source || entry?.label || "");
+      let idx = queue.findIndex((item, i) => {
+        if (used.has(i)) return false;
+        const textKey = window.MMC.normalizeMicroRaw(item.text);
+        const labelKey = window.MMC.normalizeMicroRaw(item.meal?.label);
+        return (src && src === textKey) || (src && src === labelKey);
+      });
+      if (idx < 0) idx = queue.findIndex((_, i) => !used.has(i));
+      if (idx >= 0) used.add(idx);
+      return { entry, pending: idx >= 0 ? queue[idx] : null };
+    });
+  },
+
   microDayTotals(entries) {
     return (entries || []).reduce(
       (acc, entry) => window.MMC.addMicroAmounts(acc, entry?.totals),
