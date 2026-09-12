@@ -2040,10 +2040,9 @@
     }
 
     const showMark = burned > 0;
-    const valueRight =
-      leftTowardGoal >= 0
-        ? `${round1(leftTowardGoal)} left`
-        : `${round1(Math.abs(leftTowardGoal))} over`;
+    const goalPct =
+      t.calories > 0 ? Math.round((foodKcal / t.calories) * 100) : null;
+    const valueRight = goalPct == null ? "" : `${goalPct}% of goal`;
     const deficitLabel = burned > 0
       ? `maint<span class="budget-mark-sub">+burn</span>`
       : "maint";
