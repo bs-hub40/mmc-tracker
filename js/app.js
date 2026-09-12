@@ -41,6 +41,15 @@
     parseMealWithGrok,
     parseActivityWithGrok,
     parseLogWithGrok,
+    parseMicrosWithGrok,
+    MICRO_NUTRIENTS,
+    microTargets,
+    microDayTotals,
+    microPct,
+    microStatus,
+    formatMicroAmount,
+    sanitizeMicroEntry,
+    retotalMicroEntry,
     AI_PROVIDERS,
     getActiveApiKey,
     normalizeProvider,
@@ -179,6 +188,16 @@
       term: "Nutrition strategy",
       body: "How the calculator splits protein, fat, and carbs. Ketogenic, animal-based, or pro-metabolic — calories still come from your cut, maintain, or bulk math.",
     },
+    {
+      id: "micros",
+      term: "Vitamins & minerals",
+      body: "A short list of essential vitamins and minerals estimated from food you log. Independent from the Nutrition tab in this version.",
+    },
+    {
+      id: "dv",
+      term: "% of daily target",
+      body: "How today's logged food compares with a typical adult daily target (RDA or AI). A tracking aid, not a diagnosis.",
+    },
   ];
 
   const LOG_COPY = {
@@ -187,12 +206,21 @@
       placeholder:
         'Amounts help — e.g. "Coffee with 1 tbsp half-and-half", "4 oz grass-fed ribeye", or "3 eggs scrambled in 1 tsp butter"',
       jump: "＋ Log food",
+      dateHelp: "Defaults to today. Pick another day to backdate a forgotten meal or workout.",
     },
     activity: {
       label: "Log a workout",
       placeholder:
         'Minutes help — e.g. "45 min brisk walk", "1.5 mile walk with 40 lb vest", or "Upper body lift, 50 min"',
       jump: "＋ Log activity",
+      dateHelp: "Defaults to today. Pick another day to backdate a forgotten workout.",
+    },
+    micros: {
+      label: "Log vitamins from food",
+      placeholder:
+        'Amounts help — e.g. "2 eggs and 1 cup spinach", "6 oz salmon", or "Greek yogurt with berries"',
+      jump: "＋ Log micros",
+      dateHelp: "Defaults to today. Pick another day to backdate forgotten food.",
     },
   };
 
@@ -286,6 +314,40 @@
     el.min = bounds.min;
     el.max = bounds.max;
     el.value = clampEntryDate(el.value, todayKey());
+  }
+
+  function selectedMicroDate() {
+    return clampEntryDate(els.microsDate?.value || els.logDate?.value, todayKey());
+  }
+
+  function syncMicrosDateControl(dateKey) {
+    const dest = clampEntryDate(dateKey, todayKey());
+    const bounds = entryDateBounds();
+    if (els.microsDate) {
+      els.microsDate.min = bounds.min;
+      els.microsDate.max = bounds.max;
+      els.microsDate.value = dest;
+    }
+    if (els.logDate) {
+      els.logDate.min = bounds.min;
+      els.logDate.max = bounds.max;
+      els.logDate.value = dest;
+    }
+    const today = todayKey();
+    const label = dest === today ? "Today" : formatWeightDate(dest);
+    if (els.microsDateLabel) els.microsDateLabel.textContent = label;
+    if (els.microsLogTitle) {
+      els.microsLogTitle.textContent = dest === today ? "Today's micros" : `${shortEntryDateLabel(dest)} micros`;
+    }
+    if (els.microsTodayBtn) els.microsTodayBtn.hidden = dest === today;
+    if (els.microsNextBtn) els.microsNextBtn.disabled = dest >= bounds.max;
+    if (els.microsPrevBtn) els.microsPrevBtn.disabled = dest <= bounds.min;
+    refreshLogButtonLabel();
+  }
+
+  function setSelectedMicroDate(dateKey) {
+    syncMicrosDateControl(dateKey);
+    if (state) renderMicros();
   }
 
   function refreshLogButtonLabel() {
@@ -382,9 +444,22 @@
     monthDayLog: document.getElementById("month-day-log"),
     goalLegendMonth: document.getElementById("goal-legend-month"),
     modeNutrition: document.getElementById("mode-nutrition"),
+    modeMicros: document.getElementById("mode-micros"),
     modeActivity: document.getElementById("mode-activity"),
     modeWeight: document.getElementById("mode-weight"),
     modeSettings: document.getElementById("mode-settings"),
+    logDateHelp: document.getElementById("log-date-help"),
+    microsBars: document.getElementById("micros-bars"),
+    microsList: document.getElementById("micros-list"),
+    microsEmpty: document.getElementById("micros-empty"),
+    microsDate: document.getElementById("micros-date"),
+    microsDateLabel: document.getElementById("micros-date-label"),
+    microsLogTitle: document.getElementById("micros-log-title"),
+    microsPrevBtn: document.getElementById("micros-prev-btn"),
+    microsNextBtn: document.getElementById("micros-next-btn"),
+    microsTodayBtn: document.getElementById("micros-today-btn"),
+    microsFromMealsBtn: document.getElementById("micros-from-meals-btn"),
+    resetMicrosBtn: document.getElementById("reset-micros-btn"),
     logPanel: document.getElementById("log-panel"),
     logCompose: document.getElementById("log-compose"),
     logJumpBtn: document.getElementById("log-jump-btn"),
@@ -494,7 +569,7 @@
   let qaSexPick = "";
   let lastMacroResult = null;
   let energyDetailsOpen = false;
-  let lastLoggedIds = { meals: [], activities: [] };
+  let lastLoggedIds = { meals: [], activities: [], micros: [] };
   let tourIndex = 0;
   const TOUR_STEPS = [
     {
@@ -510,8 +585,8 @@
     },
     {
       id: "tabs",
-      title: "Food, movement, scale",
-      body: "Nutrition is meals and remaining calories. Activity is workouts. Weight is the trendline — no calorie tracker there.",
+      title: "Food, micros, movement, scale",
+      body: "Nutrition is meals and remaining calories. Micros is vitamins and minerals. Activity is workouts. Weight is the trendline.",
       target: ".mode-tabs",
     },
     {
@@ -642,7 +717,7 @@
       els.logPanel &&
       !els.logPanel.hidden &&
       els.logBtn &&
-      (currentMode === "nutrition" || currentMode === "activity");
+      (currentMode === "nutrition" || currentMode === "activity" || currentMode === "micros");
     els.toast.classList.toggle("near-cta", Boolean(nearLog));
     if (!nearLog) {
       els.toast.style.top = "";
@@ -683,7 +758,7 @@
   function syncAiGate() {
     const ready = hasAiAccess();
     if (els.logCompose) els.logCompose.hidden = !ready;
-    if (currentMode === "nutrition" || currentMode === "activity") {
+    if (currentMode === "nutrition" || currentMode === "activity" || currentMode === "micros") {
       els.logBtn.disabled = logBusy || !ready;
       els.logInput.disabled = logBusy || !ready;
       if (els.micBtn) els.micBtn.disabled = logBusy || !ready;
@@ -867,6 +942,7 @@
     els.logLabel.textContent = copy.label;
     els.logInput.placeholder = copy.placeholder;
     if (els.logJumpBtn) els.logJumpBtn.textContent = copy.jump;
+    if (els.logDateHelp && copy.dateHelp) els.logDateHelp.textContent = copy.dateHelp;
     if (!logBusy) {
       const text = els.logBtn.querySelector(".btn-text");
       if (text) text.textContent = logButtonLabel();
@@ -878,7 +954,7 @@
   function updateLogJump() {
     if (!els.logJumpBtn) return;
     const showFullLog =
-      (currentMode === "nutrition" || currentMode === "activity") &&
+      (currentMode === "nutrition" || currentMode === "activity" || currentMode === "micros") &&
       els.logPanel &&
       !els.logPanel.hidden;
     if (!showFullLog) {
@@ -890,7 +966,8 @@
   }
 
   function updateLogVisibility() {
-    const showFullLog = currentMode === "nutrition" || currentMode === "activity";
+    const showFullLog =
+      currentMode === "nutrition" || currentMode === "activity" || currentMode === "micros";
     els.logPanel.hidden = !showFullLog;
     updateLogJump();
   }
@@ -906,7 +983,7 @@
       persist();
     }
     currentMode = mode;
-    if (mode !== "nutrition" && mode !== "activity") stopSpeech();
+    if (mode !== "nutrition" && mode !== "activity" && mode !== "micros") stopSpeech();
     document.querySelectorAll(".mode-tabs .mode-tab").forEach((tab) => {
       const active = tab.dataset.mode === mode;
       tab.classList.toggle("active", active);
@@ -920,12 +997,13 @@
     }
 
     els.modeNutrition.hidden = mode !== "nutrition";
+    if (els.modeMicros) els.modeMicros.hidden = mode !== "micros";
     els.modeActivity.hidden = mode !== "activity";
     els.modeWeight.hidden = mode !== "weight";
     els.modeSettings.hidden = mode !== "settings";
 
     // Streak + calorie balance stay on Nutrition and Activity only
-    els.dailyTracker.hidden = mode === "settings" || mode === "weight";
+    els.dailyTracker.hidden = mode === "settings" || mode === "weight" || mode === "micros";
     updateLogVisibility();
 
     syncLogPanel();
@@ -933,6 +1011,10 @@
     setHint(els.weightHint, "");
     renderQuickActions();
 
+    if (mode === "micros") {
+      syncMicrosDateControl(readLogDate());
+      renderMicros();
+    }
     if (mode === "weight") {
       els.weightDateLabel.textContent = formatWeightDate(todayKey());
       els.weightUnit.value = state.weightUnit || "lb";
@@ -1380,16 +1462,37 @@
     return dest;
   }
 
+  function commitMicroLog(parsed, rawText, dateKey) {
+    const cleaned = sanitizeMicroEntry(parsed);
+    if (!cleaned) return null;
+    const id = uid();
+    const dest = appendHistoryEntry(
+      state,
+      "micros",
+      {
+        id,
+        loggedAt: Date.now(),
+        rawText: cleaned.source || rawText,
+        ...cleaned,
+      },
+      dateKey
+    ).dateKey;
+    lastLoggedIds.micros.push(id);
+    return dest;
+  }
+
   function focusNewEntry(kind, dateKey) {
     const dest = clampEntryDate(dateKey, todayKey());
     const list =
-      dest !== todayKey()
-        ? (currentView === "month" ? els.monthDayLog : els.weekDayLog)?.querySelector(
-            ".meal-list"
-          )
-        : kind === "activity"
-          ? els.activityList
-          : els.mealList;
+      kind === "micros"
+        ? els.microsList
+        : dest !== todayKey()
+          ? (currentView === "month" ? els.monthDayLog : els.weekDayLog)?.querySelector(
+              ".meal-list"
+            )
+          : kind === "activity"
+            ? els.activityList
+            : els.mealList;
     const card = list?.querySelector(".is-new");
     if (!card) return;
     requestAnimationFrame(() => {
@@ -1402,6 +1505,11 @@
 
   function revealLoggedKind(kind, dateKey) {
     const dest = clampEntryDate(dateKey, todayKey());
+    if (kind === "micros") {
+      if (currentMode !== "micros") setMode("micros");
+      setSelectedMicroDate(dest);
+      return;
+    }
     if (dest !== todayKey()) {
       selectedTrendDay = dest;
       const weekStart = shiftKey(todayKey(), -6);
@@ -1421,6 +1529,13 @@
     const bits = [];
     const meals = result.meals || [];
     const acts = result.activities || [];
+    const micros = result.micros || [];
+    if (micros.length === 1) {
+      const n = (micros[0].items || []).length;
+      bits.push(`${n} food item${n === 1 ? "" : "s"} (micros)`);
+    } else if (micros.length > 1) {
+      bits.push(`${micros.length} micros logs`);
+    }
     if (meals.length === 1) {
       const n = meals[0].items.length;
       bits.push(`${n} food item${n === 1 ? "" : "s"}`);
@@ -1448,7 +1563,7 @@
       const parsed = clonePayload(action.parsed);
       const raw = action.prompt || action.label;
       const dest = readLogDate();
-      lastLoggedIds = { meals: [], activities: [] };
+      lastLoggedIds = { meals: [], activities: [], micros: [] };
       const kind = isActivityPayload(parsed) ? "activity" : "food";
       if (kind === "activity" && !confirmIfDuplicateActivity(parsed, dest)) {
         setHint(els.logHint, "Duplicate activity not logged.");
@@ -1972,6 +2087,131 @@
       : "";
 
     els.macros.innerHTML = rows + legend;
+  }
+
+  function microHighlights(totals) {
+    const nutrients = MICRO_NUTRIENTS || [];
+    const ranked = nutrients
+      .filter((n) => n.mode !== "ceiling")
+      .map((n) => ({ n, value: Number(totals[n.key]) || 0 }))
+      .filter((row) => row.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 4);
+    if (!ranked.length) return "";
+    return `<div class="micro-highlights">${ranked
+      .map(
+        (row) =>
+          `<span class="micro-highlight">${escapeHtml(row.n.short)} ${formatMicroAmount(
+            row.value,
+            row.n.decimals
+          )}${escapeHtml(row.n.unit.replace(/ .*/, ""))}</span>`
+      )
+      .join("")}</div>`;
+  }
+
+  function microsDay() {
+    return peekDay(state, selectedMicroDate());
+  }
+
+  function renderMicros() {
+    if (!els.microsBars) return;
+    syncMicrosDateControl(selectedMicroDate());
+    const dateKey = selectedMicroDate();
+    const day = peekDay(state, dateKey);
+    const entries = Array.isArray(day.micros) ? day.micros : [];
+    const totals = microDayTotals(entries);
+    const targets = microTargets(state);
+    const groups = [
+      { id: "vitamin", title: "Vitamins" },
+      { id: "mineral", title: "Minerals" },
+    ];
+
+    els.microsBars.innerHTML =
+      groups
+        .map((group) => {
+          const rows = (MICRO_NUTRIENTS || [])
+            .filter((n) => n.group === group.id)
+            .map((n) => {
+              const value = Number(totals[n.key]) || 0;
+              const target = Number(targets[n.key]) || 0;
+              const pct = microPct(value, target);
+              const status = microStatus(value, target, n.mode);
+              const shown = Math.min(value, Math.max(target, value, 0.0001));
+              const over = n.mode === "ceiling" && target > 0 && value > target;
+              const fillClass = `macro-fill ${n.group}${n.mode === "ceiling" ? " ceiling" : ""}${
+                over ? " over" : ""
+              }`;
+              const targetLabel = n.mode === "ceiling" ? `≤${target}` : String(target);
+              return `
+                <div class="macro-row micro-row${status.id === "none" ? "" : ` is-${status.id}`}">
+                  <div class="macro-name">
+                    ${escapeHtml(n.label)}
+                    ${
+                      status.label
+                        ? `<span class="micro-chip ${status.id}">${escapeHtml(status.label)}</span>`
+                        : ""
+                    }
+                  </div>
+                  ${budgetBar({
+                    value: shown,
+                    base: target,
+                    extended: target,
+                    fillClass,
+                    showMark: false,
+                  })}
+                  <div class="macro-values micro-values">
+                    ${formatMicroAmount(value, n.decimals)} <span>/ ${targetLabel} ${escapeHtml(
+                      n.unit
+                    )}</span>
+                    <span class="micro-pct">${pct}% of target</span>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+          return `<div class="micro-group"><h3 class="micro-group-title">${group.title}</h3>${rows}</div>`;
+        })
+        .join("") +
+      `<p class="micros-footnote">Adult daily targets (RDA/AI, ages 19–50). Sex-specific when your profile has M or F; otherwise a mid-adult default. Sodium is a ceiling. Not medical advice.</p>`;
+
+    if (els.microsEmpty) els.microsEmpty.hidden = entries.length > 0;
+    if (els.resetMicrosBtn) els.resetMicrosBtn.hidden = entries.length === 0;
+    if (els.microsFromMealsBtn) {
+      els.microsFromMealsBtn.hidden = !(day.meals || []).length;
+    }
+    if (els.microsList) {
+      els.microsList.innerHTML = [...entries]
+        .reverse()
+        .map((entry) => {
+          const names = (entry.items || []).map((item) => item.name).filter(Boolean);
+          const title =
+            entry.label && !/^meal$/i.test(entry.label) ? entry.label : names[0] || "Food";
+          return `
+            <li class="meal-item${lastLoggedIds.micros.includes(entry.id) ? " is-new" : ""}">
+              <div class="meal-top">
+                <div>
+                  <div class="meal-time">${formatTime(entry.loggedAt)}</div>
+                  <div class="activity-name">${escapeHtml(title)}</div>
+                </div>
+                <div class="entry-actions">
+                  <button type="button" class="meal-edit" data-edit-micro="${entry.id}">Edit</button>
+                  <button type="button" class="meal-delete" data-delete-micro="${entry.id}">Delete</button>
+                </div>
+              </div>
+              ${
+                names.length > 1
+                  ? `<div class="meal-totals">${names
+                      .slice(0, 6)
+                      .map((name) => `<span>${escapeHtml(name)}</span>`)
+                      .join("")}</div>`
+                  : ""
+              }
+              ${microHighlights(entry.totals || {})}
+            </li>
+          `;
+        })
+        .join("");
+    }
   }
 
   function mealTitle(meal) {
@@ -2526,6 +2766,7 @@
     renderStreak();
     renderEnergy();
     renderMacros();
+    renderMicros();
     renderMeals();
     renderActivities();
     renderTrends();
@@ -2539,6 +2780,61 @@
     paintPendingItemRemove();
   }
 
+  async function handleMicrosLog(text, opts = {}) {
+    const dest = selectedMicroDate();
+    const result = await parseMicrosWithGrok({
+      provider: state.provider,
+      apiKey: getActiveApiKey(state),
+      model: state.model,
+      text,
+      context: buildPersonContext(),
+    });
+    lastLoggedIds = { meals: [], activities: [], micros: [] };
+    (result.entries || []).forEach((entry) => commitMicroLog(entry, text, dest));
+    persist();
+    if (!opts.fromQuick && !opts.keepText) els.logInput.value = "";
+    revealLoggedKind("micros", dest);
+    renderAll();
+    const msg = logMessage({
+      micros: result.entries || [],
+      kind: "micros",
+      dateKey: dest,
+    });
+    setHint(els.logHint, msg, true);
+    showToast(msg, true);
+    focusNewEntry("micros", dest);
+  }
+
+  async function estimateMicrosFromMeals() {
+    if (!hasAiAccess()) {
+      showToast("AI is not available right now", false);
+      return;
+    }
+    const day = microsDay();
+    const texts = (day.meals || [])
+      .map((meal) => {
+        const raw = String(meal.rawText || "").trim();
+        if (raw) return raw;
+        return (meal.items || []).map((item) => item.name).filter(Boolean).join(", ");
+      })
+      .filter(Boolean);
+    if (!texts.length) {
+      setHint(els.logHint, "No meals on this day to estimate from.");
+      return;
+    }
+    setHint(els.logHint, "");
+    setBusy(true);
+    try {
+      await handleMicrosLog(texts.join("\n"), { keepText: true });
+    } catch (err) {
+      const msg = err.message || "Could not estimate micros from those meals.";
+      setHint(els.logHint, msg);
+      showToast(msg, false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleLog(presetText) {
     state = ensureToday(state);
     if (!hasAiAccess()) {
@@ -2550,7 +2846,12 @@
     const fromQuick = typeof presetText === "string";
     const text = (fromQuick ? presetText : els.logInput.value).trim();
     if (!text) {
-      setHint(els.logHint, "Describe a meal, a workout, or a whole day.");
+      setHint(
+        els.logHint,
+        currentMode === "micros"
+          ? "Describe the foods to estimate vitamins and minerals."
+          : "Describe a meal, a workout, or a whole day."
+      );
       return;
     }
 
@@ -2558,6 +2859,10 @@
     setBusy(true);
 
     try {
+      if (currentMode === "micros") {
+        await handleMicrosLog(text, { fromQuick });
+        return;
+      }
       const result = await parseLogWithGrok({
         provider: state.provider,
         apiKey: getActiveApiKey(state),
@@ -2566,7 +2871,7 @@
         context: buildPersonContext(),
       });
       const dest = readLogDate();
-      lastLoggedIds = { meals: [], activities: [] };
+      lastLoggedIds = { meals: [], activities: [], micros: [] };
       (result.meals || []).forEach((meal) => commitMealLog(meal, text, dest));
       const keptActs = [];
       for (const act of result.activities || []) {
@@ -2639,6 +2944,8 @@
         day.meals = (day.meals || []).filter((m) => String(m.id) !== key);
       } else if (kind === "activities") {
         day.activities = (day.activities || []).filter((a) => String(a.id) !== key);
+      } else if (kind === "micros") {
+        day.micros = (day.micros || []).filter((m) => String(m.id) !== key);
       }
     });
   }
@@ -2784,6 +3091,29 @@
     showToast("Weight entry deleted", true);
   }
 
+  function deleteMicro(id) {
+    if (!confirm("Delete this micros entry?")) return;
+    invalidateDriveWrites();
+    addTombstones(state, "micros", id);
+    dropHistoryItem("micros", id);
+    persist();
+    renderAll();
+    showToast("Micros entry deleted", true);
+  }
+
+  function resetMicrosDay() {
+    const dateKey = selectedMicroDate();
+    const label = dateKey === todayKey() ? "today's" : `${shortEntryDateLabel(dateKey)}`;
+    if (!confirm(`Clear ${label} micros?`)) return;
+    invalidateDriveWrites();
+    const day = getDay(state, dateKey);
+    addTombstones(state, "micros", (day.micros || []).map((m) => m.id));
+    day.micros = [];
+    persist();
+    renderAll();
+    setHint(els.logHint, "Micros cleared.", true);
+  }
+
   function closeEditModal() {
     clearPendingItemRemove();
     editTarget = null;
@@ -2922,6 +3252,72 @@
     els.editModal.hidden = false;
   }
 
+  function microEditField(n, value) {
+    return `
+      <label>${escapeHtml(n.short)}
+        <input class="field-input" type="number" min="0" step="${
+          n.decimals === 0 ? "1" : n.decimals === 2 ? "0.01" : "0.1"
+        }" data-micro-key="${n.key}" value="${formatMicroAmount(value, n.decimals)}" />
+      </label>
+    `;
+  }
+
+  function openEditMicro(id) {
+    const entry = findHistoryEntry("micros", id);
+    if (!entry) return;
+    editTarget = { type: "micros", id };
+    els.editTitle.textContent = "Edit micros";
+    els.editReparse.hidden = false;
+    const items = Array.isArray(entry.items) ? entry.items : [];
+    const loc = locateHistoryEntry(state, "micros", id);
+    els.editBody.innerHTML = `
+      ${editDateFieldHtml(loc?.dateKey || selectedMicroDate())}
+      <label>Original description
+        <textarea id="edit-raw" class="field-input">${escapeHtml(entry.rawText || entry.source || "")}</textarea>
+      </label>
+      <div class="field-help">Tweak item names and amounts, or change the description and use Re-parse with AI.</div>
+      <div id="edit-items">
+        ${items
+          .map(
+            (item, i) => `
+          <div class="edit-item-card" data-item-index="${i}">
+            <label>Name
+              <input class="field-input" data-field="name" value="${escapeHtml(item.name || "")}" />
+            </label>
+            <div class="edit-micro-grid">
+              ${(MICRO_NUTRIENTS || []).map((n) => microEditField(n, item[n.key])).join("")}
+            </div>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+    `;
+    setHint(els.editHint, "");
+    els.editModal.hidden = false;
+  }
+
+  function readMicroEditsFromForm() {
+    const rawText = document.getElementById("edit-raw")?.value.trim() || "";
+    const cards = [...els.editBody.querySelectorAll(".edit-item-card")];
+    const items = cards.map((card) => {
+      const amounts = {};
+      (MICRO_NUTRIENTS || []).forEach((n) => {
+        amounts[n.key] = Number(card.querySelector(`[data-micro-key="${n.key}"]`)?.value) || 0;
+      });
+      return {
+        name: card.querySelector('[data-field="name"]')?.value.trim() || "Item",
+        ...amounts,
+      };
+    });
+    return retotalMicroEntry({
+      rawText,
+      source: rawText,
+      label: items.length === 1 ? items[0].name : "",
+      items,
+    });
+  }
+
   function readMealEditsFromForm() {
     const rawText = document.getElementById("edit-raw")?.value.trim() || "";
     const cards = [...els.editBody.querySelectorAll(".edit-item-card")];
@@ -2987,6 +3383,28 @@
       return;
     }
 
+    if (editTarget.type === "micros") {
+      const loc = locateHistoryEntry(state, "micros", editTarget.id);
+      if (!loc) return;
+      const edits = readMicroEditsFromForm();
+      if (!edits.items.length) {
+        setHint(els.editHint, "Add at least one food item.");
+        return;
+      }
+      const nextDate = readEditDateFromForm(loc.dateKey);
+      Object.assign(loc.entry, edits);
+      const moved = nextDate !== loc.dateKey;
+      moveHistoryEntry(state, "micros", editTarget.id, nextDate);
+      persist();
+      renderAll();
+      closeEditModal();
+      if (moved) {
+        setSelectedMicroDate(nextDate);
+        revealMovedEntry(nextDate);
+      }
+      return;
+    }
+
     if (editTarget.type === "weight") {
       const entry = (state.weights || []).find((w) => w.id === editTarget.id);
       if (!entry) return;
@@ -3007,7 +3425,12 @@
   }
 
   async function reparseEdit() {
-    if (!editTarget || (editTarget.type !== "meal" && editTarget.type !== "activity")) return;
+    if (
+      !editTarget ||
+      (editTarget.type !== "meal" && editTarget.type !== "activity" && editTarget.type !== "micros")
+    ) {
+      return;
+    }
     const raw = document.getElementById("edit-raw")?.value.trim();
     if (!raw) {
       setHint(els.editHint, "Enter a description to re-parse.");
@@ -3037,7 +3460,7 @@
         openEditMeal(editTarget.id);
         restoreEditDate(pendingDate);
         setHint(els.editHint, "Re-parsed. Review and Save if it looks right.", true);
-      } else {
+      } else if (editTarget.type === "activity") {
         const parsed = await parseActivityWithGrok({
           provider: state.provider,
           apiKey: getActiveApiKey(state),
@@ -3051,6 +3474,24 @@
         persist();
         renderAll();
         openEditActivity(editTarget.id);
+        restoreEditDate(pendingDate);
+        setHint(els.editHint, "Re-parsed. Review and Save if it looks right.", true);
+      } else {
+        const parsed = await parseMicrosWithGrok({
+          provider: state.provider,
+          apiKey: getActiveApiKey(state),
+          model: state.model,
+          text: raw,
+          context: buildPersonContext(),
+        });
+        const entry = findHistoryEntry("micros", editTarget.id);
+        if (!entry) return;
+        const next = parsed.entries?.[0];
+        if (!next) throw new Error("Could not estimate vitamins and minerals from that.");
+        Object.assign(entry, { rawText: raw, ...next, updatedAt: Date.now() });
+        persist();
+        renderAll();
+        openEditMicro(editTarget.id);
         restoreEditDate(pendingDate);
         setHint(els.editHint, "Re-parsed. Review and Save if it looks right.", true);
       }
@@ -3710,7 +4151,11 @@
       applyTheme(btn.getAttribute("data-theme-id"), true);
     });
     els.logJumpBtn?.addEventListener("click", () => {
-      if (currentMode !== "nutrition" && currentMode !== "activity") {
+      if (
+        currentMode !== "nutrition" &&
+        currentMode !== "activity" &&
+        currentMode !== "micros"
+      ) {
         setMode("nutrition");
       }
       if (currentMode === "nutrition") setView("today");
@@ -3764,8 +4209,23 @@
     });
 
     els.logBtn.addEventListener("click", () => handleLog());
-    els.logDate?.addEventListener("input", refreshLogButtonLabel);
-    els.logDate?.addEventListener("change", refreshLogButtonLabel);
+    const onLogDateChange = () => {
+      refreshLogButtonLabel();
+      if (currentMode === "micros") setSelectedMicroDate(readLogDate());
+    };
+    els.logDate?.addEventListener("input", onLogDateChange);
+    els.logDate?.addEventListener("change", onLogDateChange);
+    els.microsDate?.addEventListener("input", () => setSelectedMicroDate(els.microsDate.value));
+    els.microsDate?.addEventListener("change", () => setSelectedMicroDate(els.microsDate.value));
+    els.microsPrevBtn?.addEventListener("click", () => {
+      setSelectedMicroDate(shiftKey(selectedMicroDate(), -1));
+    });
+    els.microsNextBtn?.addEventListener("click", () => {
+      setSelectedMicroDate(shiftKey(selectedMicroDate(), 1));
+    });
+    els.microsTodayBtn?.addEventListener("click", () => setSelectedMicroDate(todayKey()));
+    els.microsFromMealsBtn?.addEventListener("click", () => estimateMicrosFromMeals());
+    els.resetMicrosBtn?.addEventListener("click", resetMicrosDay);
     els.micBtn?.addEventListener("click", () => toggleSpeech());
     if (els.micBtn && !speechEngine()) els.micBtn.hidden = true;
     els.logInput.addEventListener("keydown", (e) => {
@@ -3814,6 +4274,16 @@
       const delAct = e.target.closest("[data-delete-activity]");
       if (delAct) {
         deleteActivity(delAct.getAttribute("data-delete-activity"));
+        return;
+      }
+      const editMicro = e.target.closest("[data-edit-micro]");
+      if (editMicro) {
+        openEditMicro(editMicro.getAttribute("data-edit-micro"));
+        return;
+      }
+      const delMicro = e.target.closest("[data-delete-micro]");
+      if (delMicro) {
+        deleteMicro(delMicro.getAttribute("data-delete-micro"));
       }
     }
 
@@ -3835,6 +4305,7 @@
 
     els.mealList.addEventListener("click", handleEntryListClick);
     els.activityList.addEventListener("click", handleEntryListClick);
+    els.microsList?.addEventListener("click", handleEntryListClick);
     els.weekDayLog?.addEventListener("click", handleEntryListClick);
     els.monthDayLog?.addEventListener("click", handleEntryListClick);
     els.weekChart?.addEventListener("click", handleTrendDayClick);

@@ -159,7 +159,14 @@ Rules:
   },
 
   emptyDay() {
-    return { meals: [], activities: [] };
+    return { meals: [], activities: [], micros: [] };
+  },
+
+  historyBucket(kind) {
+    const k = String(kind || "");
+    if (k === "activity" || k === "activities") return "activities";
+    if (k === "micro" || k === "micros") return "micros";
+    return "meals";
   },
 
   emptyQuickAction() {
@@ -351,7 +358,7 @@ Rules:
   },
 
   emptyTombstones() {
-    return { meals: {}, activities: {}, weights: {} };
+    return { meals: {}, activities: {}, weights: {}, micros: {} };
   },
 
   TOMBSTONE_TTL_MS: 90 * 24 * 60 * 60 * 1000,
@@ -395,6 +402,7 @@ Rules:
       meals: clean(input?.meals),
       activities: clean(input?.activities),
       weights: clean(input?.weights),
+      micros: clean(input?.micros),
     };
   },
 
@@ -403,7 +411,8 @@ Rules:
     return (
       Object.keys(stones.meals).length +
         Object.keys(stones.activities).length +
-        Object.keys(stones.weights).length >
+        Object.keys(stones.weights).length +
+        Object.keys(stones.micros).length >
       0
     );
   },
@@ -422,6 +431,7 @@ Rules:
       meals: mergeMap(left.meals, right.meals),
       activities: mergeMap(left.activities, right.activities),
       weights: mergeMap(left.weights, right.weights),
+      micros: mergeMap(left.micros, right.micros),
     });
   },
 
@@ -459,6 +469,7 @@ Rules:
       if (!day) return;
       day.meals = window.MMC.rejectTombstoned(day.meals, stones.meals);
       day.activities = window.MMC.rejectTombstoned(day.activities, stones.activities);
+      day.micros = window.MMC.rejectTombstoned(day.micros, stones.micros);
     });
     state.weights = window.MMC.rejectTombstoned(state.weights, stones.weights);
     return state;
@@ -477,7 +488,10 @@ Rules:
 
   stateHasLogs(state) {
     return Object.values(state?.history || {}).some(
-      (day) => (day?.meals || []).length > 0 || (day?.activities || []).length > 0
+      (day) =>
+        (day?.meals || []).length > 0 ||
+        (day?.activities || []).length > 0 ||
+        (day?.micros || []).length > 0
     );
   },
 
@@ -525,6 +539,7 @@ Rules:
     Object.values(state.history || {}).forEach((day) => {
       score += (day?.meals || []).length * 4;
       score += (day?.activities || []).length * 4;
+      score += (day?.micros || []).length * 4;
     });
     score += (state.weights || []).length;
     const profile = window.MMC.sanitizeProfile(state.profile);
@@ -1024,6 +1039,7 @@ Rules:
       [date]: {
         meals: Array.isArray(legacy.meals) ? legacy.meals : [],
         activities: [],
+        micros: [],
       },
     };
     if (!state.history[today]) state.history[today] = window.MMC.emptyDay();
@@ -1081,6 +1097,7 @@ Rules:
     const day = state.history[dateKey];
     if (!Array.isArray(day.meals)) day.meals = [];
     if (!Array.isArray(day.activities)) day.activities = [];
+    if (!Array.isArray(day.micros)) day.micros = [];
     return day;
   },
 
@@ -1090,6 +1107,7 @@ Rules:
     return {
       meals: Array.isArray(day.meals) ? day.meals : [],
       activities: Array.isArray(day.activities) ? day.activities : [],
+      micros: Array.isArray(day.micros) ? day.micros : [],
     };
   },
 
@@ -1268,7 +1286,7 @@ Rules:
 
   locateHistoryEntry(state, kind, id) {
     const key = String(id || "");
-    const bucket = kind === "activity" ? "activities" : "meals";
+    const bucket = window.MMC.historyBucket(kind);
     const hist = state?.history || {};
     for (const [dateKey, day] of Object.entries(hist)) {
       if (!day) continue;
@@ -1284,7 +1302,8 @@ Rules:
   appendHistoryEntry(state, kind, entry, dateKey) {
     const dest = window.MMC.clampEntryDate(dateKey, window.MMC.todayKey());
     const day = window.MMC.getDay(state, dest);
-    const list = kind === "activity" ? day.activities : day.meals;
+    const bucket = window.MMC.historyBucket(kind);
+    const list = day[bucket];
     entry.date = dest;
     list.push(entry);
     return {
@@ -1293,7 +1312,7 @@ Rules:
       list,
       index: list.length - 1,
       entry,
-      bucket: kind === "activity" ? "activities" : "meals",
+      bucket,
     };
   },
 
@@ -1306,7 +1325,7 @@ Rules:
     if (dest === loc.dateKey) return loc;
     const [entry] = loc.list.splice(loc.index, 1);
     const day = window.MMC.getDay(state, dest);
-    const list = kind === "activity" ? day.activities : day.meals;
+    const list = day[loc.bucket];
     list.push(entry);
     return {
       dateKey: dest,
@@ -1326,7 +1345,7 @@ Rules:
       const wins = new Map();
       const consider = (hist) => {
         Object.entries(hist || {}).forEach(([dateKey, day]) => {
-          const list = kind === "activities" ? day?.activities : day?.meals;
+          const list = day?.[kind];
           (list || []).forEach((item, i) => {
             if (!item) return;
             const id = String(item.id || `anon-${item.loggedAt || 0}-${i}`);
@@ -1359,18 +1378,18 @@ Rules:
           ? dateKey
           : window.MMC.todayKey();
         entry.date = key;
-        if (kind === "activities") ensure(key).activities.push(entry);
-        else ensure(key).meals.push(entry);
+        ensure(key)[kind].push(entry);
       });
     };
     place("meals", foldKind("meals"));
     place("activities", foldKind("activities"));
+    place("micros", foldKind("micros"));
     return history;
   },
 
   dayHasEntry(state, dateKey) {
     const day = window.MMC.peekDay(state, dateKey);
-    if (day.meals.length > 0 || day.activities.length > 0) return true;
+    if (day.meals.length > 0 || day.activities.length > 0 || day.micros.length > 0) return true;
     return (state.weights || []).some(
       (w) => w && window.MMC.isValidDateKey(w.date) && w.date === dateKey
     );

@@ -2,6 +2,7 @@ import {
   ACTIVITY_SYSTEM_PROMPT,
   LOG_SYSTEM_PROMPT,
   MEAL_SYSTEM_PROMPT,
+  MICROS_SYSTEM_PROMPT,
   USER_PREFIX,
 } from "./prompts.js";
 
@@ -9,6 +10,7 @@ const TASKS = {
   log: LOG_SYSTEM_PROMPT,
   meal: MEAL_SYSTEM_PROMPT,
   activity: ACTIVITY_SYSTEM_PROMPT,
+  micros: MICROS_SYSTEM_PROMPT,
 };
 
 function allowedOrigins(env) {
@@ -238,7 +240,13 @@ export default {
     const system = TASKS[task];
     const text = String(body?.text || "").trim();
     if (!system) return json(env, request, { error: "Unknown task" }, 400);
-    if (!text) return json(env, request, { error: "Describe food or activity." }, 400);
+    if (!text) {
+      const empty =
+        task === "micros"
+          ? "Describe the foods to estimate vitamins and minerals."
+          : "Describe food or activity.";
+      return json(env, request, { error: empty }, 400);
+    }
     if (text.length > 8000) return json(env, request, { error: "That log is too long." }, 400);
 
     const context = String(body?.context || "").slice(0, 2500);
