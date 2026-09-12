@@ -2536,6 +2536,7 @@
     updateLogJump();
     syncLogDateControl();
     refreshLogButtonLabel();
+    paintPendingItemRemove();
   }
 
   async function handleLog(presetText) {
@@ -2642,31 +2643,71 @@
     });
   }
 
-  function clearPendingItemRemove() {
-    if (pendingItemRemove) {
-      pendingItemRemove.classList.remove("is-confirm");
-      pendingItemRemove.textContent = pendingItemRemove.dataset.label || "Remove";
-      pendingItemRemove = null;
+  function escapeSel(value) {
+    const s = String(value ?? "");
+    return window.CSS?.escape ? window.CSS.escape(s) : s.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  function pendingRemoveSelector(pending) {
+    if (!pending) return "";
+    if (pending.source === "edit") {
+      return `[data-remove-edit-item][data-item-index="${escapeSel(pending.index)}"]`;
     }
+    return `[data-remove-meal-item="${escapeSel(pending.mealId)}"][data-item-index="${escapeSel(
+      pending.index
+    )}"]`;
+  }
+
+  function samePendingRemove(a, b) {
+    return Boolean(
+      a &&
+        b &&
+        a.source === b.source &&
+        String(a.mealId) === String(b.mealId) &&
+        Number(a.index) === Number(b.index)
+    );
+  }
+
+  function paintPendingItemRemove() {
+    document.querySelectorAll(".meal-item-remove").forEach((btn) => {
+      const on = pendingItemRemove && btn.matches(pendingRemoveSelector(pendingItemRemove));
+      if (on) {
+        btn.dataset.label = btn.dataset.label || "Remove";
+        btn.classList.add("is-confirm");
+        btn.textContent = "Remove?";
+      } else if (btn.classList.contains("is-confirm")) {
+        btn.classList.remove("is-confirm");
+        btn.textContent = btn.dataset.label || "Remove";
+      }
+    });
+  }
+
+  function clearPendingItemRemove() {
+    pendingItemRemove = null;
     if (pendingItemRemoveTimer) {
       clearTimeout(pendingItemRemoveTimer);
       pendingItemRemoveTimer = null;
     }
+    paintPendingItemRemove();
   }
 
-  function requestItemRemove(btn, onConfirm) {
-    if (!btn) return;
-    if (pendingItemRemove === btn) {
+  function requestItemRemove(target, onConfirm) {
+    if (!target || target.mealId == null || target.index == null) return;
+    const next = {
+      source: target.source === "edit" ? "edit" : "card",
+      mealId: String(target.mealId),
+      index: Number(target.index),
+    };
+    if (!Number.isInteger(next.index) || next.index < 0) return;
+    if (samePendingRemove(pendingItemRemove, next)) {
       clearPendingItemRemove();
       onConfirm();
       return;
     }
-    clearPendingItemRemove();
-    pendingItemRemove = btn;
-    btn.dataset.label = btn.dataset.label || btn.textContent.trim() || "Remove";
-    btn.classList.add("is-confirm");
-    btn.textContent = "Remove?";
-    pendingItemRemoveTimer = window.setTimeout(clearPendingItemRemove, 4000);
+    pendingItemRemove = next;
+    paintPendingItemRemove();
+    if (pendingItemRemoveTimer) clearTimeout(pendingItemRemoveTimer);
+    pendingItemRemoveTimer = window.setTimeout(clearPendingItemRemove, 5000);
   }
 
   function removeMealFoodItem(mealId, itemIndex) {
@@ -2796,6 +2837,7 @@
     `;
     setHint(els.editHint, "");
     els.editModal.hidden = false;
+    paintPendingItemRemove();
   }
 
   function openEditActivity(id) {
@@ -3736,11 +3778,10 @@
     function handleEntryListClick(e) {
       const removeItem = e.target.closest("[data-remove-meal-item]");
       if (removeItem) {
-        requestItemRemove(removeItem, () => {
-          removeMealFoodItem(
-            removeItem.getAttribute("data-remove-meal-item"),
-            Number(removeItem.getAttribute("data-item-index"))
-          );
+        const mealId = removeItem.getAttribute("data-remove-meal-item");
+        const index = Number(removeItem.getAttribute("data-item-index"));
+        requestItemRemove({ source: "card", mealId, index }, () => {
+          removeMealFoodItem(mealId, index);
         });
         return;
       }
@@ -3909,7 +3950,9 @@
       const btn = e.target.closest("[data-remove-edit-item]");
       if (!btn || !editTarget || editTarget.type !== "meal") return;
       const index = Number(btn.getAttribute("data-item-index"));
-      requestItemRemove(btn, () => removeMealFoodItem(editTarget.id, index));
+      requestItemRemove({ source: "edit", mealId: editTarget.id, index }, () => {
+        removeMealFoodItem(editTarget.id, index);
+      });
     });
     els.editModal.addEventListener("click", (e) => {
       if (e.target === els.editModal) closeEditModal();
