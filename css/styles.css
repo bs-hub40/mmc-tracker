@@ -1553,6 +1553,10 @@ button {
   white-space: nowrap;
 }
 
+.energy-budget-values span:last-child {
+  text-align: right;
+}
+
 .energy-strip {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
