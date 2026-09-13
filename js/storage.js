@@ -1223,6 +1223,28 @@ Rules:
     };
   },
 
+  // Under-bar right on the calorie card. Cutting days show remaining food
+  // kcal before leaving deficit (or how far over maintenance). That is not
+  // leftover-to-goal — the hero keeps “left today”.
+  energyBudgetValueRight({ foodKcal, goalKcal, deficitUntil }) {
+    const food = Math.max(0, Number(foodKcal) || 0);
+    const goal = Math.max(0, Number(goalKcal) || 0);
+    const until =
+      deficitUntil == null || deficitUntil === ""
+        ? null
+        : Number(deficitUntil);
+    const cutting =
+      until != null && Number.isFinite(until) && until > goal + 20;
+    if (cutting) {
+      if (food > until) {
+        return `${window.MMC.round1(food - until)} over maint`;
+      }
+      return `${window.MMC.round1(until - food)} in deficit`;
+    }
+    if (!(goal > 0)) return "";
+    return `${Math.round((food / goal) * 100)}% of goal`;
+  },
+
   netKcalOf(energyOrTotals) {
     return (
       energyOrTotals?.netCalories ??

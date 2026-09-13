@@ -2040,9 +2040,11 @@
     }
 
     const showMark = burned > 0;
-    const goalPct =
-      t.calories > 0 ? Math.round((foodKcal / t.calories) * 100) : null;
-    const valueRight = goalPct == null ? "" : `${goalPct}% of goal`;
+    const valueRight = window.MMC.energyBudgetValueRight({
+      foodKcal,
+      goalKcal: t.calories,
+      deficitUntil,
+    });
     const deficitLabel = burned > 0
       ? `maint<span class="budget-mark-sub">+burn</span>`
       : "maint";
